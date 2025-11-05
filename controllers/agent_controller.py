@@ -4,7 +4,7 @@ import json
 import os
 # Importa solo lo necesario para el controlador
 from services.update_service import (
-    update_ticket_with_auto_diagnosis, 
+    actualiza_con_diagnostico, 
     get_or_create_session_id,
 )
 
@@ -26,7 +26,7 @@ def update_with_diagnosis():
 
     try:
         # LLAMADA DIRECTA A LA LÓGICA CENTRAL
-        result = update_ticket_with_auto_diagnosis(
+        result = actualiza_con_diagnostico(
             ticket_id=ticket_id, 
             session_id=data.get("session_id"), 
             data=data
@@ -59,6 +59,7 @@ def znuny_webhook():
         "form": request.form.to_dict(),
         "raw_body": request.get_data(as_text=True),
     }
+    print(payload.get("raw_body"))
 
     # Guardar log
     logs_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "logs")
@@ -104,9 +105,6 @@ def znuny_webhook():
     if not ticket_id:
         return jsonify({"error": "No se encontró TicketID en el payload"}), 400
 
-    # -----------------------------------------------------------
-    # CORRECCIÓN DE UNBOUNDLOCALERROR: Obtener SessionID de forma explícita
-    # -----------------------------------------------------------
     session_id = (
         os.environ.get("ZNUNY_SESSION_ID")
         or os.environ.get("SESSION_ID")
@@ -127,7 +125,7 @@ def znuny_webhook():
     try:
         print(f"[Webhook] Procesando ticket {ticket_id}...")
    
-        update_ticket_with_auto_diagnosis(
+        actualiza_con_diagnostico(
             ticket_id=ticket_id,
             session_id=session_id,
             data=payload_json
