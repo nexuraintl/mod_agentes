@@ -235,47 +235,24 @@ def actualiza_con_diagnostico(ticket_id: int, session_id: str = None, data: dict
     if not ticket_text:
         raise ValueError("No se encontró texto del ticket (último artículo).")
 
-    # --- Llamar a la IA ---
+    # --- Llamar a la IA y obtener el diccionario de agent_service ---
     print("[Service] Generando diagnóstico a partir del ticket...")
-    response_obj = _AGENT_SERVICE.diagnose_ticket(ticket_text)
+    # response_data es un dict: {'type_id': 14, 'diagnostico': '...'}
+    response_data = _AGENT_SERVICE.diagnose_ticket(ticket_text) 
 
-    # --- Extraer texto de la respuesta (según formato del SDK) ---
-    response_text = None
-    try:
-        # Intentar obtener texto desde el formato Gemini
-        response_text = response_obj.candidates[0].content.parts[0].text
-    except Exception:
-        # Si no tiene esa estructura, asumir que ya es texto plano
-        response_text = str(response_obj)
+    # --- Extracción Directa y Limpieza del Cuerpo ---
+    type_id_from_ia = response_data.get("type_id")
+    # Asegúrate de tomar solo el texto del diagnóstico
+    diagnosis_body = response_data.get("diagnostico")
 
-    if not response_text or response_text.strip() == "":
+    if not diagnosis_body or diagnosis_body.strip() == "":
         raise RuntimeError("La IA devolvió un diagnóstico vacío.")
 
     print("🔍 Texto IA extraído:")
-    print(response_text)
+    # Muestra el resultado de la IA para el log
+    print(response_data) 
 
-    # --- Limpiar si viene con triple comillas o bloque de código Markdown ---
-    response_text = response_text.strip().removeprefix("```json").removesuffix("```").strip()
-    clean_text = response_text.replace("'",'"')
-
-    # --- Intentar decodificar JSON ---
-    type_id_from_ia = None
-
-    try:
-        response_json = json.loads(clean_text)
-
-        type_id_from_ia = response_json.get("type_id")
-        # Algunos modelos usan "diagnosis" o "diagnostico" según el idioma
-        diagnosis_body = (
-            response_json.get("diagnosis")
-            or response_json.get("diagnostico")
-            
-        )
-        
-        print(f"[Service] ✅ Diagnóstico y TypeID extraídos: type_id={type_id_from_ia}")
-    except json.JSONDecodeError:
-        print("[Service] ⚠️ La respuesta no era un JSON válido, se usa texto plano.")
-    
+    print(f"[Service] ✅ Diagnóstico y TypeID extraídos: type_id={type_id_from_ia}")
 
     # --- Actualizar el ticket ---
     print(f"[Service] Enviando actualización al ticket {ticket_id}...")
@@ -288,9 +265,12 @@ def actualiza_con_diagnostico(ticket_id: int, session_id: str = None, data: dict
         priority_id=priority_id,
         state_id=state_id,
         subject=subject,
-        body=diagnosis_body,
-        type_id=type_id_from_ia
+        # ¡IMPORTANTE! Solo enviamos el TEXTO, no el JSON.
+        body=diagnosis_body, 
+        type_id=type_id_from_ia # Esto ahora es un int o None, y se maneja correctamente en actualizar_ticket
     )
+    
+    # ... (código de manejo de errores y retorno)
 
     if isinstance(resp, dict) and 'error' in resp:
         raise RuntimeError(f"Fallo al actualizar Znuny: {resp['error']}")

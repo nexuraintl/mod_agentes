@@ -16,32 +16,27 @@ class AgentService:
         Llama al modelo, recibe una cadena JSON, la parsea y retorna el texto
         de diagnóstico formateado para el artículo de Znuny.
         """
-        json_string = self.adk_client.diagnose_ticket(ticket_text)
+        response_text = self.adk_client.diagnose_ticket(ticket_text)
         
-        if not json_string:
+        if not response_text:
             return "Diagnóstico automático no disponible (Modelo de IA no respondió)."
 
+        # Intentar parsear el JSON que devuelve la IA
         try:
-            # Limpieza simple por si el modelo envuelve el JSON en bloques de código
-            json_string = json_string.strip().lstrip('```json').rstrip('```').strip()
-            
-            # Parsear la cadena JSON
-            diagnostico_data = json.loads(json_string)
+            # A veces la IA devuelve el JSON entre json ... 
+            cleaned = response_text.strip().strip("`").replace("json", "")
+            data = json.loads(cleaned)
+            diagnostico = data.get("diagnostico") or data.get("diagnosis")
+            type_id = data.get("type_id")
 
-            # Extraer los campos requeridos (tipo y diagnostico)
-            tipo = diagnostico_data.get("tipo", "Sin Clasificar")
-            diagnostico = diagnostico_data.get("diagnostico")
-            
             if not diagnostico:
-                 return f"Diagnóstico automático fallido: JSON de IA válido, pero falta la clave 'diagnostico'. JSON: {json_string}"
+                return "Diagnóstico automático no disponible (IA no entregó campo diagnóstico)."
 
-            # Formatear la salida final para el artículo de Znuny
-            return f"[Clasificación: {tipo}]\n---\n{diagnostico}"
-            
+            return {
+                "type_id": type_id,
+                "diagnostico": diagnostico or "Diagnóstico no disponible (IA vacía)."
+            }
+
         except json.JSONDecodeError:
-            # Si la salida no es JSON válido
-            print(f"Error: La salida del modelo no fue JSON válida. Salida: {json_string}")
-            return f"Error de Diagnóstico (Modelo): La respuesta de IA no fue JSON válida. Texto bruto: {json_string[:100]}..."
-        except Exception as e:
-            # Otros errores de parsing
-            return f"Error inesperado al procesar diagnóstico: {e}"
+            # Si no es JSON, devolvemos solo texto
+            return {"diagnostico": response_text.strip(), "type_id": None}
