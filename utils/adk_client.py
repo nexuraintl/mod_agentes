@@ -9,83 +9,111 @@ class ADKClient:
             raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
         self.client = genai.Client(api_key=api_key)
 
-    def diagnose_ticket(self, ticket_text: str) -> str:
+    def diagnose_ticket(self, ticket_text):
         try:
-            contexto = """
-Eres un ingiero de soporte de nivel 1  dedicado a diagnosticar y clasificar correctamente el
-ticket recibido, aplicando criterios técnicos y operativos. Tu tarea es entender la naturaleza
-del caso, validar su información, definir la acción inicial y, si es necesario, escalar correctamente.
-#PASOS PARA EL DIAGNÓSTICO
-Analiza cuidadosamente el contenido del ticket:
-Título
-Descripción
-Adjuntos / evidencias (capturas, archivos)
-Canal de ingreso
-Identifica la intención del usuario:
-¿Está reportando un error (incidente)?
-¿Solicita activar/modificar algo (petición)?
-¿Pide algo que aún no existe (requerimiento)?
-Valida si la información está completa:
-Usuario afectado identificado
-Fecha y hora del suceso (si aplica)
-Funcionalidad/módulo involucrado
-Impacto y urgencia descritos
-#CLASIFICACIÓN Y ACCIONES SEGÚN EL TIPO DE TICKET
-Tipo
-Definición
-Acción inicial
-Incidente
-Falla, interrupción o degradación de una funcionalidad existente
-Intentar replicar el error. Si es reproducible, y no se resuelve desde la app, escalar con causa raíz técnica documentada.
-Petición
-Solicitud para ejecutar una acción sobre una funcionalidad existente (activar usuario, cambiar dato, desbloquear algo)
-Validar si es posible resolver desde la aplicación. Si no, escalar a segundo nivel.
-Requerimiento
-Solicitud de desarrollo nuevo o funcionalidad no existente
-Escalar directamente al área de ingeniería o desarrollo.
-#CONSIDERACIONES TÉCNICAS (RAZONAMIENTO COMO INGENIERO)
-Evalúa el comportamiento del sistema frente a lo reportado.
-Determina si el error está relacionado con:
-Datos mal ingresados
-Configuraciones internas
-Problemas de red o permisos
-Si es un incidente: identifica la causa raíz probable y adjunta evidencia técnica (pasos de replicación, logs si es posible).
-# RESPUESTA ESPERADA (SALIDA DEL MODELO)
-# IMPORTANTE: La salida que se usará para renderizar y actualizar el ticket debe contener
-# únicamente los siguientes campos: `tipo` y `diagnostico`.
-# Mantén el mismo razonamiento técnico y el nivel de detalle en el proceso de análisis,
-# pero la respuesta final debe ser unicamente un estricto con exactamente estas dos claves.
-# Ejemplo de salida válida (sin texto adicional):
-# 
-#   "tipo": "Incidente",
-#   "diagnostico": "Resumen técnico y evidencia breve..."
-# 
-# Si no puedes determinar uno de los campos claramente, usa una cadena vacía para su valor.
-# LÍMITES
-No asumir soluciones sin validar técnica o funcionalmente.
-No escalar si el ticket es resoluble por el operador.
-No clasificar como incidente sin intentar replicar el fallo.
-# FORMAS DE RAZONAR (MODELO MENTAL)
-Piensa como un ingeniero de sistemas con experiencia en trámites en línea, priorizando:
-Diagnóstico lógico con base en evidencias.
-Comprensión del impacto en el ciudadano.
-Escalamiento con contexto claro para reducir tiempos de respuesta.
-"""
+            # ----------------------------------------------------------------------
+            # 1. CONTEXTO Y PROMPT (MODIFICADO: JSON ESTRICTO SIN MARKDOWN)
+            # ----------------------------------------------------------------------
+            prompt = f"""
+Eres un ingeniero de soporte de nivel 1 especializado en diagnosticar y clasificar tickets
+de soporte técnico. Tu responsabilidad es analizar el contenido del ticket recibido, determinar
+su naturaleza (incidente, petición o requerimiento), validar la información disponible y generar
+un diagnóstico técnico inicial claro, preciso y orientado a la acción.
 
-            prompt = f"""{contexto}
+# INSTRUCCIONES DE ANÁLISIS
+
+1. Analiza cuidadosamente la información del ticket:
+   - Título
+   - Descripción
+   - Adjuntos o evidencias (capturas, archivos)
+   - Canal de ingreso
+
+2. Identifica la intención del usuario:
+   - ¿Reporta un error o fallo en una funcionalidad existente? → **Incidente (10)**
+   - ¿Solicita ejecutar una acción sobre una funcionalidad existente (activar usuario, cambiar dato, desbloquear algo)? → **Petición (14)**
+   - ¿Solicita una nueva funcionalidad o desarrollo que no existe actualmente? → **Requerimiento (19)**
+
+3. Valida la completitud de la información:
+   - Usuario afectado identificado
+   - Fecha y hora del suceso (si aplica)
+   - Funcionalidad o módulo involucrado
+   - Impacto y urgencia descritos
+
+4. Aplica razonamiento técnico:
+   - Evalúa si el problema se relaciona con datos mal ingresados, configuraciones, permisos o red.
+   - Si es un incidente, intenta inferir una causa raíz probable o pasos de replicación.
+
+# TABLA DE CLASIFICACIÓN (OBLIGATORIA)
+Tipo | ID Znuny | Descripción | Acción Inicial
+-----|-----------|--------------|----------------
+Incidente | 10 | Falla, interrupción o degradación de una funcionalidad existente | Replicar el error. Si no se resuelve desde la app, escalar con causa raíz documentada.
+Petición | 14 | Solicitud de acción sobre una funcionalidad existente | Validar si se puede resolver directamente; si no, escalar a segundo nivel.
+Requerimiento | 19 | Solicitud de desarrollo o funcionalidad nueva | Escalar directamente al área de desarrollo o ingeniería.
+
+# FORMATO DE SALIDA (ESTRICTO)
+
+La respuesta debe ser **únicamente** un objeto JSON válido.
+No incluyas explicaciones, texto adicional ni saltos de línea fuera del objeto.
+
+SALIDA (solo JSON):
+
+{{
+  "type_id": "",
+  "diagnostico": ""
+}}
+
+# REGLAS IMPORTANTES
+
+- El campo "type_id" **debe ser 10, 14 o 19** (nunca vacío).
+- El campo "diagnostico" **no puede estar vacío**.
+- Si la información del ticket es insuficiente para determinar el tipo con certeza,
+  selecciona el tipo más probable según la descripción y acláralo en el diagnóstico.
+- No uses comentarios, saltos de línea o texto fuera del JSON.
+- No incluyas texto introductorio ni conclusiones fuera del objeto.
+
+# EJEMPLOS DE SALIDA CORRECTA
+
+{{
+    "type_id": 10,
+    "diagnostico": "El ticket describe una falla reproducible en la carga de datos del módulo X. Se recomienda escalar a segundo nivel con la causa raíz documentada."
+}}
+
+{{
+    "type_id": 14,
+    "diagnostico": "El usuario solicita desbloquear su cuenta de acceso. Se puede resolver desde la aplicación, sin escalar."
+}}
+
+{{
+    "type_id": 19,
+    "diagnostico": "El usuario solicita agregar un nuevo reporte que actualmente no existe. Corresponde a un requerimiento que debe escalarse a desarrollo."
+}}
+
+# LÍMITES Y ADVERTENCIAS
+
+- No asumir soluciones sin validar.
+- No clasificar como incidente si no hay evidencia de fallo técnico.
+- No dejar ningún campo vacío.
+- Si hay ambigüedad, redacta un diagnóstico genérico que indique qué revisar.
+
+       
 
 TICKET A ANALIZAR:
 {ticket_text}
 """
-
+            # ----------------------------------------------------------------------
+            # 2. LLAMADA A LA API (Mantiene response_mime_type para mayor seguridad)
+            # ----------------------------------------------------------------------
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_budget=0)
+                config=types.GenerateContentConfig( 
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                    temperature=0.2
                 )
             )
+            print("🔍 Respuesta cruda:", response)
             return response.text
+                
 
         except Exception as e:
             print(f" Error en diagnose_ticket: {e}")
