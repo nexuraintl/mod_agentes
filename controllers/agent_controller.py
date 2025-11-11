@@ -10,40 +10,6 @@ from services.update_service import (
 
 agent_bp = Blueprint("agent", __name__)
 
-
-# --------------------------------------------------------------------------
-## Endpoint: Actualización Manual (/agent/update)
-# --------------------------------------------------------------------------
-@agent_bp.route("/agent/update", methods=["POST"])
-def update_with_diagnosis():
-    """Endpoint HTTP que delega la actualización y el diagnóstico al servicio."""
-    
-    data = request.get_json() or {}
-    ticket_id = data.get("ticket_id")
-
-    if not ticket_id:
-        return jsonify({"error": "Debe enviar 'ticket_id'"}), 400
-
-    try:
-        # LLAMADA DIRECTA A LA LÓGICA CENTRAL
-        result = actualiza_con_diagnostico(
-            ticket_id=ticket_id, 
-            session_id=data.get("session_id"), 
-            data=data
-        )
-        return jsonify(result), 200
-        
-    except ValueError as e:
-        print(f"[ERROR] Validación de datos fallida: {e}")
-        return jsonify({"error": f"Error de datos: {e}"}), 400
-    except RuntimeError as e:
-        print(f"[ERROR] Fallo en la comunicación con Znuny: {e}")
-        return jsonify({"error": f"Error de servicio Znuny: {e}"}), 500
-    except Exception as e:
-        print(f"[ERROR] Error interno inesperado: {e}")
-        return jsonify({"error": f"Error interno inesperado: {e}"}), 500
-
-
 # --------------------------------------------------------------------------
 ## Endpoint: Webhook de Znuny (/znuny-webhook)
 # --------------------------------------------------------------------------
