@@ -11,12 +11,12 @@ class AgentService:
     def __init__(self):
         self.adk_client = ADKClient()
 
-    def diagnose_ticket(self, ticket_text: str) -> Union[str, Dict[str, Optional[str]]]:
+    def diagnose_ticket(self, ticket_text: str, examples_context: str = "") -> Union[str, Dict[str, Optional[str]]]:
         """
         Calls the model, receives a JSON string, parses it, and returns the formatted
         diagnosis text for the Znuny article.
         """
-        response_text = self.adk_client.diagnose_ticket(ticket_text)
+        response_text = self.adk_client.diagnose_ticket(ticket_text, examples_context)
         
         if not response_text:
             logger.warning("Automatic diagnosis unavailable (AI Model did not respond).")

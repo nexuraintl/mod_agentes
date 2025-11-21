@@ -9,7 +9,7 @@ class ADKClient:
             raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
         self.client = genai.Client(api_key=api_key)
 
-    def diagnose_ticket(self, ticket_text):
+    def diagnose_ticket(self, ticket_text, examples_context=""):
         try:
             # ----------------------------------------------------------------------
             # 1. CONTEXTO Y PROMPT (MODIFICADO: JSON ESTRICTO SIN MARKDOWN)
@@ -68,13 +68,9 @@ SALIDA (solo JSON):
 - *(refuerzo: Nunca crear categorías nuevas como “Sin Clasificar”).*
 - *(refuerzo: Siempre producir una salida válida aunque falte información).*
 
-# EJEMPLOS DE SALIDA CORRECTA
-
-{{"type_id": 10, "diagnostico": "El ticket describe una falla reproducible en la carga de datos del módulo X. Se recomienda escalar a segundo nivel con la causa raíz documentada."}}
-
-{{"type_id": 14, "diagnostico": "El usuario solicita desbloquear su cuenta de acceso. Se puede resolver desde la aplicación, sin escalar."}}
-
-{{"type_id": 19, "diagnostico": "El usuario solicita agregar un nuevo reporte que actualmente no existe. Corresponde a un requerimiento que debe escalarse a desarrollo."}}
+# EJEMPLOS DE REFERENCIA (BASE DE CONOCIMIENTO)
+Usa estos ejemplos reales para guiar tu diagnóstico y estilo de respuesta:
+{examples_context}
 
 # LÍMITES Y ADVERTENCIAS
 

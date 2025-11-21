@@ -6,6 +6,7 @@ import requests
 from typing import Optional, Dict, Any, Union
 
 from .agent_service import AgentService
+from .google_drive_service import GoogleDriveService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -28,6 +29,13 @@ class ZnunyService:
         
         # Lazy initialization of AgentService to avoid import errors at module level
         self._agent_service: Optional[AgentService] = None
+        self._drive_service: Optional[GoogleDriveService] = None
+
+    @property
+    def drive_service(self) -> GoogleDriveService:
+        if self._drive_service is None:
+            self._drive_service = GoogleDriveService()
+        return self._drive_service
 
     @property
     def agent_service(self) -> AgentService:
@@ -214,7 +222,21 @@ class ZnunyService:
             raise ValueError("No ticket text found (latest article).")
 
         logger.info("Generating diagnosis from ticket...")
-        response_data = self.agent_service.diagnose_ticket(ticket_text) 
+        
+        # Fetch examples from Drive
+        examples_context = ""
+        try:
+            # ID del documento "tickets"
+            DOC_ID = "13dEi_PJb68T7NEJ2XcHdYhdsbs-iZPbuaVjb-GR_o6k"
+            examples_context = self.drive_service.get_file_content(DOC_ID)
+            if examples_context:
+                logger.info("✅ Examples fetched from Drive successfully.")
+            else:
+                logger.warning("⚠️ Failed to fetch examples from Drive (empty content).")
+        except Exception as e:
+            logger.error(f"❌ Error fetching examples from Drive: {e}")
+
+        response_data = self.agent_service.diagnose_ticket(ticket_text, examples_context) 
         
         # Handle response from AgentService (which might be a string or dict depending on implementation)
         # Assuming AgentService returns a dict as per previous code

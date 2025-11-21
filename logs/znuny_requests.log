@@ -27979,3 +27979,47 @@
   "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"411\" \n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
 }
 
+{
+  "time": "2025-11-21T16:55:00.693893Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "117"
+  },
+  "args": {},
+  "json": {
+    "Event": {
+      "Name": "TicketCreate",
+      "TicketID": "411"
+    },
+    "UserLogin": "AutomationUser"
+  },
+  "form": {},
+  "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"411\"\n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
+}
+
+{
+  "time": "2025-11-21T16:58:42.829754Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "119"
+  },
+  "args": {},
+  "json": {
+    "Event": {
+      "Name": "TicketCreate",
+      "TicketID": "86769"
+    },
+    "UserLogin": "AutomationUser"
+  },
+  "form": {},
+  "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"86769\"\n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
+}
+
