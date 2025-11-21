@@ -28023,3 +28023,79 @@
   "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"86769\"\n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
 }
 
+{
+  "time": "2025-11-21T20:12:11.317704Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "121"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86799,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba Manual RAG",
+    "State": "new",
+    "Queue": "Soporte"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 86799, \"TicketNumber\": \"2023102510000099\", \"Title\": \"Prueba Manual RAG\", \"State\": \"new\", \"Queue\": \"Soporte\"}"
+}
+
+{
+  "time": "2025-11-21T20:47:24.612921Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "51d0b2e1-d260-497c-ac48-f77c8fb5ddc9",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "273"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 398,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 398,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-11-21T20:48:29.334134Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "c032a72b-361f-40c9-a6af-fd52b994ebd2",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "273"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 226,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 226,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+

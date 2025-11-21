@@ -6,7 +6,7 @@ import requests
 from typing import Optional, Dict, Any, Union
 
 from .agent_service import AgentService
-from .google_drive_service import GoogleDriveService
+from .knowledge_base_service import KnowledgeBaseService
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -29,13 +29,13 @@ class ZnunyService:
         
         # Lazy initialization of AgentService to avoid import errors at module level
         self._agent_service: Optional[AgentService] = None
-        self._drive_service: Optional[GoogleDriveService] = None
+        self._kb_service: Optional[KnowledgeBaseService] = None
 
     @property
-    def drive_service(self) -> GoogleDriveService:
-        if self._drive_service is None:
-            self._drive_service = GoogleDriveService()
-        return self._drive_service
+    def kb_service(self) -> KnowledgeBaseService:
+        if self._kb_service is None:
+            self._kb_service = KnowledgeBaseService()
+        return self._kb_service
 
     @property
     def agent_service(self) -> AgentService:
@@ -223,20 +223,24 @@ class ZnunyService:
 
         logger.info("Generating diagnosis from ticket...")
         
-        # Fetch examples from Drive
-        examples_context = ""
+        # RAG Integration: Get Tool Config
+        tool_config = None
         try:
-            # ID del documento "tickets"
-            DOC_ID = "13dEi_PJb68T7NEJ2XcHdYhdsbs-iZPbuaVjb-GR_o6k"
-            examples_context = self.drive_service.get_file_content(DOC_ID)
-            if examples_context:
-                logger.info("✅ Examples fetched from Drive successfully.")
+            # 1. Obtener/Crear el Store (Nombre fijo para MVP)
+            store_name = self.kb_service.get_or_create_store(display_name="Znuny_Tickets_KB")
+            
+            # 2. Obtener configuración de la herramienta
+            if store_name:
+                tool_config = self.kb_service.get_tool_config(store_name)
+                logger.info(f"✅ RAG Tool Configured with Store: {store_name}")
             else:
-                logger.warning("⚠️ Failed to fetch examples from Drive (empty content).")
+                logger.warning("⚠️ Failed to get Store Name for RAG.")
+                
         except Exception as e:
-            logger.error(f"❌ Error fetching examples from Drive: {e}")
+            logger.error(f"❌ Error configuring RAG: {e}")
 
-        response_data = self.agent_service.diagnose_ticket(ticket_text, examples_context) 
+        # Pass tool_config instead of examples_context
+        response_data = self.agent_service.diagnose_ticket(ticket_text, tool_config) 
         
         # Handle response from AgentService (which might be a string or dict depending on implementation)
         # Assuming AgentService returns a dict as per previous code

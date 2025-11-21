@@ -57,3 +57,50 @@ class GoogleDriveService:
         except Exception as e:
             print(f"❌ Error leyendo archivo de Drive {file_id}: {e}")
             return ""
+
+    def sync_file_to_knowledge_base(self, file_id: str, kb_service, store_name: str) -> bool:
+        """
+        Descarga el contenido de un archivo de Drive y lo sube al Knowledge Base Store.
+        
+        Args:
+            file_id: ID del archivo en Google Drive.
+            kb_service: Instancia de KnowledgeBaseService.
+            store_name: Nombre del store en Gemini.
+            
+        Returns:
+            bool: True si la sincronización fue exitosa.
+        """
+        try:
+            print(f"🔄 Sincronizando archivo Drive {file_id} a KB {store_name}...")
+            
+            # 1. Obtener contenido
+            content = self.get_file_content(file_id)
+            if not content:
+                print("❌ No se pudo obtener contenido de Drive.")
+                return False
+                
+            # 2. Guardar en archivo temporal
+            temp_filename = f"temp_drive_{file_id}.txt"
+            with open(temp_filename, "w") as f:
+                f.write(content)
+                
+            # 3. Subir a Knowledge Base
+            success = kb_service.upload_and_index_file(store_name, temp_filename)
+            
+            # 4. Limpieza
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)
+                
+            if success:
+                print("✅ Sincronización completada.")
+                return True
+            else:
+                print("❌ Falló la subida a Knowledge Base.")
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error en sincronización: {e}")
+            # Asegurar limpieza en caso de error
+            if 'temp_filename' in locals() and os.path.exists(temp_filename):
+                os.remove(temp_filename)
+            return False
