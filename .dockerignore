@@ -1,0 +1,44 @@
+# Tests (no van a producción)
+tests/
+.pytest_cache/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Documentación
+README.md
+*.md
+docs/
+
+# Python build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Entornos virtuales
+env/
+venv/
+ENV/
+
+# Logs
+logs/
+*.log
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+temp_*.txt
+
+# CI/CD
+.github/
+.azure-pipeline.yml
