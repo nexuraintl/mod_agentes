@@ -2,13 +2,16 @@ from flask import Blueprint, request, jsonify
 import datetime
 import json
 import os
-# Importa solo lo necesario para el controlador
-from services.update_service import (
-    actualiza_con_diagnostico, 
-    get_or_create_session_id,
-)
+import logging
+from services.update_service import ZnunyService
+
+# Configure logging for the controller
+logger = logging.getLogger(__name__)
 
 agent_bp = Blueprint("agent", __name__)
+
+# Instantiate the service (Singleton pattern for this module)
+znuny_service = ZnunyService()
 
 # --------------------------------------------------------------------------
 ## Endpoint: Webhook de Znuny (/znuny-webhook)
@@ -25,7 +28,7 @@ def znuny_webhook():
         "form": request.form.to_dict(),
         "raw_body": request.get_data(as_text=True),
     }
-    print(payload.get("raw_body"))
+    logger.debug(f"Raw body: {payload.get('raw_body')}")
 
     # Guardar log
     logs_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "logs")
@@ -34,10 +37,10 @@ def znuny_webhook():
     try:
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(payload, ensure_ascii=False, indent=2) + "\n\n")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error(f"Failed to write to log file: {e}")
 
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    logger.info(f"Payload received: {json.dumps(payload, ensure_ascii=False, indent=2)}")
 
     # Lógica para obtener TicketID 
     ticket_id = None
@@ -69,38 +72,37 @@ def znuny_webhook():
         except Exception: pass
 
     if not ticket_id:
+        logger.error("No TicketID found in payload")
         return jsonify({"error": "No se encontró TicketID en el payload"}), 400
 
-    session_id = (
-        os.environ.get("ZNUNY_SESSION_ID")
-        or os.environ.get("SESSION_ID")
-        or payload_json.get("SessionID")
-    )
-    
-    # Si session_id sigue siendo None, forzamos la creación/obtención (llamando a la función)
-    if not session_id:
-        try:
-            session_id = get_or_create_session_id()
-            print(f"[Webhook] ✅ SessionID creado/obtenido automáticamente.")
-        except Exception as e:
-            # Si falla la creación de la sesión (ej. error de autenticación), abortamos.
-            return jsonify({"error": f"No se pudo obtener SessionID: {e}"}), 500
-
-
-    # Encadenar actualización: LLAMADA DIRECTA AL SERVICIO
+    # Session handling via ZnunyService
     try:
-        print(f"[Webhook] Procesando ticket {ticket_id}...")
+        # We don't strictly need to pass session_id if the service handles it internally,
+        # but the original logic tried to get it from env or payload first.
+        # ZnunyService.get_or_create_session_id() handles env vars and caching.
+        # If payload has a session ID, we might want to use it, but usually we want our own admin session.
+        # Let's rely on the service to get a valid session for the agent.
+        session_id = znuny_service.get_or_create_session_id()
+        logger.info(f"[Webhook] ✅ SessionID obtained: {session_id}")
+    except Exception as e:
+        logger.error(f"Failed to obtain SessionID: {e}")
+        return jsonify({"error": f"No se pudo obtener SessionID: {e}"}), 500
+
+
+    # Encadenar actualización: LLAMADA AL SERVICIO
+    try:
+        logger.info(f"[Webhook] Processing ticket {ticket_id}...")
    
-        actualiza_con_diagnostico(
+        znuny_service.diagnose_and_update_ticket(
             ticket_id=ticket_id,
             session_id=session_id,
             data=payload_json
         )
-        print(f"[Webhook] Actualización de ticket {ticket_id} completada.")
+        logger.info(f"[Webhook] Update for ticket {ticket_id} completed.")
         
     except Exception as e:
         # Maneja cualquier fallo en la lógica central y lo registra.
-        print(f"[Webhook] Error al procesar el webhook: {e}")
+        logger.error(f"[Webhook] Error processing webhook: {e}")
         return jsonify({"status": "error", "message": f"Fallo en la actualización: {e}"}), 500 
 
     return jsonify({"status": "ok", "ticket_id": ticket_id}), 200
