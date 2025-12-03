@@ -9,94 +9,63 @@ class ADKClient:
             raise ValueError("La variable de entorno GOOGLE_API_KEY no está configurada.")
         self.client = genai.Client(api_key=api_key)
 
-    def diagnose_ticket(self, ticket_text):
+    def diagnose_ticket(self, ticket_text, tool_config=None):
         try:
             # ----------------------------------------------------------------------
-            # 1. CONTEXTO Y PROMPT (MODIFICADO: JSON ESTRICTO SIN MARKDOWN)
+            # 1. CONTEXTO Y PROMPT (MODIFICADO: RAG ENABLED)
             # ----------------------------------------------------------------------
             prompt = f"""
-Eres un ingeniero de soporte de nivel 1 especializado en diagnosticar y clasificar tickets
-de soporte técnico. Tu responsabilidad es analizar el contenido del ticket recibido, determinar
-su naturaleza (incidente, petición o requerimiento), validar la información disponible y generar
-un diagnóstico técnico inicial claro, preciso y orientado a la acción.
+Eres un ingeniero de soporte de nivel 1 especializado en diagnosticar y clasificar tickets.
 
 # INSTRUCCIONES DE ANÁLISIS
 
-1. Analiza cuidadosamente la información del ticket:
-   - Título
-   - Descripción
-   - Adjuntos o evidencias (capturas, archivos)
-   - Canal de ingreso
-
-2. Identifica la intención del usuario:
-   - ¿Reporta un error o fallo en una funcionalidad existente? → *Incidente (10)*
-   - ¿Solicita ejecutar una acción sobre una funcionalidad existente (activar usuario, cambiar dato, desbloquear algo)? → *Petición (14)*
-   - ¿Solicita una nueva funcionalidad o desarrollo que no existe actualmente? → *Requerimiento (19)*
-
-3. Valida la completitud de la información:
-   - Usuario afectado identificado
-   - Fecha y hora del suceso (si aplica)
-   - Funcionalidad o módulo involucrado
-   - Impacto y urgencia descritos
-
-4. Aplica razonamiento técnico:
-   - Evalúa si el problema se relaciona con datos mal ingresados, configuraciones, permisos o red.
-   - Si es un incidente, intenta inferir una causa raíz probable o pasos de replicación.
+1. Analiza el ticket recibido.
+2. **CONSULTA TU BASE DE CONOCIMIENTO** (usando las herramientas disponibles) para buscar casos similares, soluciones previas o documentación relevante.
+3. Identifica la intención (Incidente, Petición, Requerimiento).
+4. Genera un diagnóstico técnico basado en la evidencia del ticket y la información recuperada.
 
 # TABLA DE CLASIFICACIÓN (OBLIGATORIA)
 Tipo | ID Znuny | Descripción | Acción Inicial
 -----|-----------|--------------|----------------
-Incidente | 10 | Falla, interrupción o degradación de una funcionalidad existente | Replicar el error. Si no se resuelve desde la app, escalar con causa raíz documentada.
-Petición | 14 | Solicitud de acción sobre una funcionalidad existente | Validar si se puede resolver directamente; si no, escalar a segundo nivel.
-Requerimiento | 19 | Solicitud de desarrollo o funcionalidad nueva | Escalar directamente al área de desarrollo o ingeniería.
+Incidente | 10 | Falla, interrupción o degradación | Replicar, escalar con causa raíz.
+Petición | 14 | Solicitud de acción sobre existente | Resolver o escalar.
+Requerimiento | 19 | Solicitud de nueva funcionalidad | Escalar a desarrollo.
 
-# FORMATO DE SALIDA (ESTRICTO)
+# FORMATO DE SALIDA (ESTRICTO JSON)
 
-La respuesta debe ser *únicamente* un objeto JSON válido. *(refuerzo: Cualquier texto fuera del JSON invalida la respuesta)*
+{{
+  "type_id": 10|14|19,
+  "diagnostico": "Texto del diagnóstico..."
+}}
 
-SALIDA (solo JSON):
-
-{{"type_id": "", "diagnostico": ""}}
-
-# REGLAS IMPORTANTES
-
-- El campo "type_id" *debe ser 10, 14 o 19* (nunca vacío).
-- El campo "diagnostico" *no puede estar vacío*.
-- *(refuerzo: No se permite texto introductorio, conclusiones, encabezados, etiquetas o comentarios fuera del JSON).*
-- Si la información del ticket es insuficiente para determinar el tipo con certeza,
-  selecciona el tipo más probable según la descripción y acláralo en el diagnóstico.
-- *(refuerzo: Nunca crear categorías nuevas como “Sin Clasificar”).*
-- *(refuerzo: Siempre producir una salida válida aunque falte información).*
-
-# EJEMPLOS DE SALIDA CORRECTA
-
-{{"type_id": 10, "diagnostico": "El ticket describe una falla reproducible en la carga de datos del módulo X. Se recomienda escalar a segundo nivel con la causa raíz documentada."}}
-
-{{"type_id": 14, "diagnostico": "El usuario solicita desbloquear su cuenta de acceso. Se puede resolver desde la aplicación, sin escalar."}}
-
-{{"type_id": 19, "diagnostico": "El usuario solicita agregar un nuevo reporte que actualmente no existe. Corresponde a un requerimiento que debe escalarse a desarrollo."}}
-
-# LÍMITES Y ADVERTENCIAS
-
-- No asumir soluciones sin validar.
-- No clasificar como incidente si no hay evidencia de fallo técnico.
-- No dejar ningún campo vacío.
-- Si hay ambigüedad, redacta un diagnóstico genérico que indique qué revisar.
-
-       
+# REGLAS
+- Usa la información recuperada para enriquecer el diagnóstico.
+- Si no encuentras información relevante en la base de conocimiento, usa tu criterio general.
+- Respuesta SOLO en JSON.
 
 TICKET A ANALIZAR:
 {ticket_text}
 """
             # ----------------------------------------------------------------------
-            # 2. LLAMADA A LA API (Mantiene response_mime_type para mayor seguridad)
+            # 2. LLAMADA A LA API CON TOOLS
             # ----------------------------------------------------------------------
+            
+            # Configuración de herramientas
+            tools = []
+            if tool_config:
+                # Asumimos que tool_config es una lista de herramientas o un objeto Tool válido
+                if isinstance(tool_config, list):
+                    tools.extend(tool_config)
+                else:
+                    tools.append(tool_config)
+
             response = self.client.models.generate_content(
                 model="gemini-2.5-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig( 
                     thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.2
+                    temperature=0.2,
+                    tools=tools # Inyectamos las herramientas (RAG)
                 )
             )
             print("🔍 Respuesta cruda:", response)
