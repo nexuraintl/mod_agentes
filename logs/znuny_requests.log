@@ -28532,3 +28532,21 @@
   "raw_body": "{\n  \"TicketID\": \"86928\"\n \n}"
 }
 
+{
+  "time": "2025-12-18T16:00:09.087218Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "21"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "87132"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": \"87132\"}"
+}
+
