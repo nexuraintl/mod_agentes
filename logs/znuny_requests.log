@@ -28550,3 +28550,59 @@
   "raw_body": "{\"TicketID\": \"87132\"}"
 }
 
+{
+  "time": "2026-01-08T19:45:56.327696Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "65"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 268,
+    "titulo": "Test Ticket",
+    "usuario": "testuser"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 268, \"titulo\": \"Test Ticket\", \"usuario\": \"testuser\"}"
+}
+
+{
+  "time": "2026-01-08T19:53:46.937388Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "19"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 87306
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 87306}"
+}
+
+{
+  "time": "2026-01-08T19:56:10.915508Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "19"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 87306
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 87306}"
+}
+

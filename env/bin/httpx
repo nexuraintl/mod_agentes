@@ -1,4 +1,4 @@
-#!/home/usuario/Documentos/agents/agents/env/bin/python3
+#!/home/usuario/Documentos/mod_agentes/env/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys
