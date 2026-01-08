@@ -27979,3 +27979,630 @@
   "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"411\" \n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
 }
 
+{
+  "time": "2025-11-21T16:55:00.693893Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "117"
+  },
+  "args": {},
+  "json": {
+    "Event": {
+      "Name": "TicketCreate",
+      "TicketID": "411"
+    },
+    "UserLogin": "AutomationUser"
+  },
+  "form": {},
+  "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"411\"\n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
+}
+
+{
+  "time": "2025-11-21T16:58:42.829754Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "119"
+  },
+  "args": {},
+  "json": {
+    "Event": {
+      "Name": "TicketCreate",
+      "TicketID": "86769"
+    },
+    "UserLogin": "AutomationUser"
+  },
+  "form": {},
+  "raw_body": "{\n    \"Event\": {\n        \"Name\": \"TicketCreate\",\n        \"TicketID\": \"86769\"\n    },\n    \"UserLogin\": \"AutomationUser\"\n}"
+}
+
+{
+  "time": "2025-11-21T20:12:11.317704Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "121"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86799,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba Manual RAG",
+    "State": "new",
+    "Queue": "Soporte"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 86799, \"TicketNumber\": \"2023102510000099\", \"Title\": \"Prueba Manual RAG\", \"State\": \"new\", \"Queue\": \"Soporte\"}"
+}
+
+{
+  "time": "2025-11-21T20:47:24.612921Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "51d0b2e1-d260-497c-ac48-f77c8fb5ddc9",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "273"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 398,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 398,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-11-21T20:48:29.334134Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "c032a72b-361f-40c9-a6af-fd52b994ebd2",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "273"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 226,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 226,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El cliente reporta error 999 al facturar. Necesita desbloquear la tabla invoices.\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:37:58.021220Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "6968491d-bfa2-4c70-83e3-2d305e791bb7",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "298"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86908,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 86908,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:40:57.176171Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "6c49698d-981f-4dda-9116-49721b949463",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "179"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86908,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 86908,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n \n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:44:56.286980Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "2c7a4785-77e6-4882-adcd-2fb4d485888e",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "115"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86909,
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 86909,\n \n \n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:48:46.578826Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "a103edfb-ff93-4b09-b5ce-3b65ea87dc7d",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "298"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86908,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 86908,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:49:16.916926Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "9ce071de-53f1-40a3-b7a7-aa7ce6f7c0fd",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "298"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 86908,
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba de RAG",
+    "Article": "El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .",
+    "Channel": "email",
+    "Customer": "Acme Corp",
+    "CreatedAt": "2025-11-21T15:00:00Z"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": 86908,\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba de RAG\",\n  \"Article\": \"El servicio lleva 7 días caído no he podido ingresar a la plataforma a hacer el cargue de documentos .\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Acme Corp\",\n  \"CreatedAt\": \"2025-11-21T15:00:00Z\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:53:17.360809Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "52"
+  },
+  "args": {},
+  "json": {
+    "Event": {
+      "TicketID": "86909"
+    }
+  },
+  "form": {},
+  "raw_body": "{\n    \"Event\": {\n      \"TicketID\": \"86909\"\n    }\n  }"
+}
+
+{
+  "time": "2025-12-01T20:55:29.311524Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "237"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86909",
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba con RAG de Sheets",
+    "Article": "No puedo acceder a la plataforma desde hace 3 días",
+    "Channel": "email",
+    "Customer": "Test Customer"
+  },
+  "form": {},
+  "raw_body": "{\n    \"TicketID\": \"86909\",\n    \"TicketNumber\": \"2023102510000099\",\n    \"Title\": \"Prueba con RAG de Sheets\",\n    \"Article\": \"No puedo acceder a la plataforma desde hace 3 días\",\n    \"Channel\": \"email\",\n    \"Customer\": \"Test Customer\"\n  }"
+}
+
+{
+  "time": "2025-12-01T20:58:00.644848Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "0496a540-faa0-4fb1-a616-c59dd9078c12",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "223"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86909",
+    "TicketNumber": "2023102510000099",
+    "Title": "Prueba con RAG de Sheets",
+    "Article": "No puedo acceder a la plataforma desde hace 3 días",
+    "Channel": "email",
+    "Customer": "Test Customer"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86909\",\n  \"TicketNumber\": \"2023102510000099\",\n  \"Title\": \"Prueba con RAG de Sheets\",\n  \"Article\": \"No puedo acceder a la plataforma desde hace 3 días\",\n  \"Channel\": \"email\",\n  \"Customer\": \"Test Customer\"\n}"
+}
+
+{
+  "time": "2025-12-01T20:59:35.190778Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "213400e1-bc08-47dc-ba4c-12d7f6bfcc28",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "85"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86908",
+    "Article": "Error al cargar documentos en la plataforma"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86908\",\n  \"Article\": \"Error al cargar documentos en la plataforma\"\n}"
+}
+
+{
+  "time": "2025-12-01T21:00:12.144378Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "66f3284c-7ee3-4ee4-a7b0-44b2defa9b6d",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "85"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86909",
+    "Article": "Error al cargar documentos en la plataforma"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86909\",\n  \"Article\": \"Error al cargar documentos en la plataforma\"\n}"
+}
+
+{
+  "time": "2025-12-01T21:01:07.711772Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "bc865789-e1b9-4987-9bb5-4f525d5356c9",
+    "Host": "192.168.1.25:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86909"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86909\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T21:03:28.481398Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "d1b03b28-07b1-4416-b60f-55a82603caab",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86909"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86909\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T21:05:47.584320Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "01f691f6-280a-4bcd-8bc3-77b95e9901ae",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86910"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86910\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T21:06:28.670938Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "73d5f80f-2536-4244-8b2f-a03edc929949",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86910"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86910\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T23:45:01.560443Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "3c1e34fe-3d91-4254-ab80-ffdda2beb835",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86915"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86915\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T23:50:56.288886Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "819aaca1-8aae-497c-8c8b-a4fcb22c4307",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86916"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86916\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T23:54:53.988809Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "60f1d119-40f8-46d1-8fc9-336c3cbc6280",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86917"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86917\"\n \n}"
+}
+
+{
+  "time": "2025-12-01T23:59:50.341675Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "1f44d96c-f517-4e86-a6c7-f48d035f4553",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86918"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86918\"\n \n}"
+}
+
+{
+  "time": "2025-12-02T18:37:15.963615Z",
+  "method": "POST",
+  "headers": {
+    "Content-Type": "application/json",
+    "User-Agent": "PostmanRuntime/7.49.1",
+    "Accept": "*/*",
+    "Postman-Token": "dd061f73-5f17-4cc8-9e95-895b398b458e",
+    "Host": "localhost:8080",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Connection": "keep-alive",
+    "Content-Length": "27"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "86928"
+  },
+  "form": {},
+  "raw_body": "{\n  \"TicketID\": \"86928\"\n \n}"
+}
+
+{
+  "time": "2025-12-18T16:00:09.087218Z",
+  "method": "POST",
+  "headers": {
+    "Host": "192.168.1.25:8080",
+    "User-Agent": "curl/7.81.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "21"
+  },
+  "args": {},
+  "json": {
+    "TicketID": "87132"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": \"87132\"}"
+}
+
+{
+  "time": "2026-01-08T19:45:56.327696Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "65"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 268,
+    "titulo": "Test Ticket",
+    "usuario": "testuser"
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 268, \"titulo\": \"Test Ticket\", \"usuario\": \"testuser\"}"
+}
+
+{
+  "time": "2026-01-08T19:53:46.937388Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "19"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 87306
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 87306}"
+}
+
+{
+  "time": "2026-01-08T19:56:10.915508Z",
+  "method": "POST",
+  "headers": {
+    "Host": "localhost:8080",
+    "User-Agent": "curl/8.5.0",
+    "Accept": "*/*",
+    "Content-Type": "application/json",
+    "Content-Length": "19"
+  },
+  "args": {},
+  "json": {
+    "TicketID": 87306
+  },
+  "form": {},
+  "raw_body": "{\"TicketID\": 87306}"
+}
+

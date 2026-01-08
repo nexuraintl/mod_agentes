@@ -1,29 +1,60 @@
+# Credenciales y secretos
+env_vars/.env
+*.key
+*.pem
+
 # Python
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 
-# Environments
+# Entornos virtuales
 env/
 venv/
-.venv/
 ENV/
-
-# IDE
-.vscode/
-.idea/
+env.bak/
+venv.bak/
 
 # Logs
-logs/*.log
+logs/
+*.log
 
-# Cache
+# Testing
 .pytest_cache/
-.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
 
 # OS
 .DS_Store
 Thumbs.db
+*.bak
 
-# Credentials (keep sample only)
-# env_vars/.env  # Uncomment if you want to ignore .env
+# Archivos temporales
+temp_*.txt
+temp_drive_*.txt
+temp_incident_*.txt
