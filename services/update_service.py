@@ -4,7 +4,6 @@ import time
 import logging
 import requests
 from typing import Optional, Dict, Any, Union
-
 from .agent_service import AgentService
 from .knowledge_base_service import KnowledgeBaseService
 
@@ -253,15 +252,16 @@ class ZnunyService:
     def _generate_diagnosis(self, ticket_text: str, tool_config) -> Dict[str, Any]:
         """
         Generates AI diagnosis from ticket text.
-        Returns dict with 'type_id' and 'diagnostico'.
+        Returns dict with 'type_id', 'requires_visual', and 'diagnostico'.
         """
         response_data = self.agent_service.diagnose_ticket(ticket_text, tool_config)
         
         if isinstance(response_data, str):
-            return {"type_id": None, "diagnostico": response_data}
+            return {"type_id": None, "requires_visual": False, "diagnostico": response_data}
         
         return {
             "type_id": response_data.get("type_id"),
+            "requires_visual": response_data.get("requires_visual", False),
             "diagnostico": response_data.get("diagnostico")
         }
 
@@ -367,6 +367,61 @@ class ZnunyService:
             logger.warning(f"⚠️ Error notifying log monitor: {e}")
             return False
 
+    def _call_multimodal_service(self, ticket_id: int, ticket_text: str) -> Optional[Dict[str, Any]]:
+        """
+        Calls the multimodal-images service for visual/design ticket analysis.
+        Waits for response and returns the diagnosis.
+        
+        Returns dict with 'type_id' and 'diagnosis' or None on failure.
+        """
+        multimodal_url = os.environ.get("MULTIMODAL_URL", "http://localhost:8085")
+        endpoint = f"{multimodal_url}/diagnose"
+        
+        payload = {
+            "ticket_id": str(ticket_id),
+            "ticket_text": ticket_text,
+            "use_rag": True
+            # TODO: Add images support when needed
+        }
+        
+        try:
+            logger.info(f"🎨 Calling multimodal service for ticket {ticket_id}...")
+            response = requests.post(
+                endpoint,
+                json=payload,
+                timeout=120  # Visual analysis can take time
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if data.get("status") == "error":
+                logger.error(f"❌ Multimodal service error: {data.get('error')}")
+                return None
+            
+            # Handle diagnosis - can be string or array
+            diagnosis = data.get("diagnosis")
+            if isinstance(diagnosis, list):
+                diagnosis = json.dumps(diagnosis, indent=2, ensure_ascii=False)
+            
+            logger.info(f"🎨 Visual diagnosis received. TypeID: {data.get('type_id')}, Time: {data.get('processing_time_ms')}ms")
+            
+            return {
+                "type_id": data.get("type_id"),
+                "diagnosis": diagnosis,
+                "processing_time_ms": data.get("processing_time_ms")
+            }
+            
+        except requests.exceptions.Timeout:
+            logger.warning("⚠️ Multimodal service request timed out (120s)")
+            return None
+        except requests.exceptions.ConnectionError:
+            logger.warning("⚠️ Could not connect to multimodal service - may be down")
+            return None
+        except Exception as e:
+            logger.warning(f"⚠️ Error calling multimodal service: {e}")
+            return None
+
     # =========================================================================
     # MAIN ORCHESTRATOR (Follows Single Responsibility - just orchestrates)
     # =========================================================================
@@ -407,14 +462,29 @@ class ZnunyService:
         diagnosis_result = self._generate_diagnosis(ticket_text, tool_config)
         
         type_id_from_ia = diagnosis_result["type_id"]
+        requires_visual = diagnosis_result.get("requires_visual", False)
         diagnosis_body = diagnosis_result["diagnostico"]
         
         if not diagnosis_body or not diagnosis_body.strip():
             raise RuntimeError("AI returned empty diagnosis.")
         
-        logger.info(f"Diagnosis generated. TypeID: {type_id_from_ia}")
+        logger.info(f"Diagnosis generated. TypeID: {type_id_from_ia}, RequiresVisual: {requires_visual}")
 
-        # 6. Process incident (conditional)
+        # 6. Route to multimodal service if visual analysis needed
+        visual_result = None
+        if requires_visual:
+            logger.info("🎨 Ticket requires visual analysis - calling multimodal service...")
+            visual_result = self._call_multimodal_service(ticket_id, ticket_text)
+            
+            if visual_result:
+                # Use visual diagnosis instead of classic diagnosis
+                diagnosis_body = visual_result["diagnosis"]
+                type_id_from_ia = visual_result["type_id"] or type_id_from_ia
+                logger.info(f"🎨 Using visual diagnosis. New TypeID: {type_id_from_ia}")
+            else:
+                logger.warning("⚠️ Visual analysis failed - using classic diagnosis as fallback")
+
+        # 7. Process incident (conditional - only if type_id == 10)
         incident_data = self._process_incident(
             ticket_id, session_id, ticket_text, diagnosis_body, type_id_from_ia
         )
