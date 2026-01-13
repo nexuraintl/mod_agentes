@@ -43,3 +43,9 @@ class AgentService:
             # If not JSON, return text only
             logger.info("AI response was not JSON, returning raw text.")
             return {"diagnostico": response_text.strip(), "type_id": None}
+
+    def extract_client_info(self, metadata: dict, article_text: str) -> dict:
+        """
+        Extrae información del cliente real de un ticket de tipo Incidente.
+        """
+        return self.adk_client.extract_client(metadata, article_text)
