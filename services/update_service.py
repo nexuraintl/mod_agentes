@@ -265,47 +265,13 @@ class ZnunyService:
             "diagnostico": response_data.get("diagnostico")
         }
 
-    def _build_incident_data(self, ticket_id: int, metadata: dict, 
-                              diagnosis_body: str, type_id: int, 
-                              client_info: dict) -> dict:
-        """Builds the incident data structure."""
-        import datetime
-        return {
-            "ticket_id": ticket_id,
-            "ticket_number": metadata.get("ticket_number"),
-            "title": metadata.get("title"),
-            "type_id": type_id,
-            "type_name": "Incidente",
-            "diagnostico": diagnosis_body,
-            "cliente_znuny": {
-                "customer_id": metadata.get("customer_id"),
-                "customer_user": metadata.get("customer_user")
-            },
-            "cliente_real": client_info,
-            "queue": metadata.get("queue"),
-            "state": metadata.get("state"),
-            "priority": metadata.get("priority"),
-            "created": metadata.get("created"),
-            "processed_at": datetime.datetime.utcnow().isoformat() + "Z"
-        }
-
-    def _save_incident_to_file(self, ticket_id: int, incident_data: dict) -> str:
-        """Saves incident data to JSON file. Returns the file path."""
-        incidents_dir = os.path.join(os.path.dirname(__file__), "..", "logs", "incidents")
-        os.makedirs(incidents_dir, exist_ok=True)
-        
-        json_path = os.path.join(incidents_dir, f"ticket_{ticket_id}.json")
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(incident_data, f, ensure_ascii=False, indent=2)
-        
-        return json_path
 
     def _process_incident(self, ticket_id: int, session_id: str, 
                           ticket_text: str, diagnosis_body: str, 
                           type_id: int) -> Optional[dict]:
         """
         Processes incident tickets (type_id=10).
-        Extracts client info and saves to JSON.
+        Extracts client info and notifies log monitor service.
         Returns incident_data or None.
         """
         if type_id != 10:
@@ -322,14 +288,22 @@ class ZnunyService:
             # Extract client using AI
             client_info = self.agent_service.extract_client_info(metadata, ticket_text)
             
-            # Build and save incident data
-            incident_data = self._build_incident_data(
-                ticket_id, metadata, diagnosis_body, type_id, client_info
-            )
+            # Build incident data for log monitor
+            import datetime
+            incident_data = {
+                "ticket_id": ticket_id,
+                "ticket_number": metadata.get("ticket_number"),
+                "title": metadata.get("title"),
+                "type_id": type_id,
+                "diagnostico": diagnosis_body,
+                "cliente_real": client_info,
+                "queue": metadata.get("queue"),
+                "state": metadata.get("state"),
+                "priority": metadata.get("priority"),
+                "created": metadata.get("created"),
+                "processed_at": datetime.datetime.utcnow().isoformat() + "Z"
+            }
             
-            json_path = self._save_incident_to_file(ticket_id, incident_data)
-            
-            logger.info(f"✅ Incident data saved to: {json_path}")
             logger.info(f"📍 Cliente real detectado: {client_info.get('entidad', 'No identificado')}")
             
             # Notify external log monitor service
@@ -346,7 +320,10 @@ class ZnunyService:
         Notifies the external log monitor service about the incident.
         Fire-and-forget pattern - does not block on failure.
         """
-        log_monitor_url = os.environ.get("LOG_MONITOR_URL", "http://localhost:8000")
+        log_monitor_url = os.environ.get("LOG_MONITOR_URL")
+        if not log_monitor_url:
+            logger.warning("⚠️ LOG_MONITOR_URL not configured - skipping log monitor notification")
+            return False
         endpoint = f"{log_monitor_url}/analyze-incident"
         
         try:
@@ -374,7 +351,10 @@ class ZnunyService:
         
         Returns dict with 'type_id' and 'diagnosis' or None on failure.
         """
-        multimodal_url = os.environ.get("MULTIMODAL_URL", "http://localhost:8085")
+        multimodal_url = os.environ.get("MULTIMODAL_URL")
+        if not multimodal_url:
+            logger.warning("⚠️ MULTIMODAL_URL not configured - skipping visual analysis")
+            return None
         endpoint = f"{multimodal_url}/diagnose"
         
         payload = {
