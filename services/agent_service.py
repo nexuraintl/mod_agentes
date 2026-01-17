@@ -29,6 +29,7 @@ class AgentService:
             data = json.loads(cleaned)
             diagnostico = data.get("diagnostico") or data.get("diagnosis")
             type_id = data.get("type_id")
+            requires_visual = data.get("requires_visual", False)
 
             if not diagnostico:
                 logger.warning("Automatic diagnosis unavailable (AI returned empty diagnosis field).")
@@ -36,10 +37,17 @@ class AgentService:
 
             return {
                 "type_id": type_id,
+                "requires_visual": requires_visual,
                 "diagnostico": diagnostico or "Diagnóstico no disponible (IA vacía)."
             }
 
         except json.JSONDecodeError:
             # If not JSON, return text only
             logger.info("AI response was not JSON, returning raw text.")
-            return {"diagnostico": response_text.strip(), "type_id": None}
+            return {"diagnostico": response_text.strip(), "type_id": None, "requires_visual": False}
+
+    def extract_client_info(self, metadata: dict, article_text: str) -> dict:
+        """
+        Extrae información del cliente real de un ticket de tipo Incidente.
+        """
+        return self.adk_client.extract_client(metadata, article_text)

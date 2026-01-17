@@ -1,0 +1,20 @@
+{
+    "test_date": "2026-01-15",
+    "services": {
+        "mod_agentes": "http://localhost:8080",
+        "error_logs": "http://localhost:8000",
+        "multimodal_images": "http://localhost:8085"
+    },
+    "tests": [
+        {
+            "ticket_id": 38,
+            "timestamp": "",
+            "type_id": null,
+            "requires_visual": null,
+            "called_multimodal": false,
+            "called_error_logs": false,
+            "response_status": "ok",
+            "diagnosis": ""
+        }
+    ]
+}
