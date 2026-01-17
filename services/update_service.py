@@ -3,6 +3,7 @@ import json
 import time
 import logging
 import requests
+from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any, Union
 from .agent_service import AgentService
 from .knowledge_base_service import KnowledgeBaseService
@@ -29,6 +30,9 @@ class ZnunyService:
         # Lazy initialization of AgentService to avoid import errors at module level
         self._agent_service: Optional[AgentService] = None
         self._kb_service: Optional[KnowledgeBaseService] = None
+        
+        # ThreadPoolExecutor for async incident processing
+        self._executor = ThreadPoolExecutor(max_workers=5, thread_name_prefix="incident_")
 
     @property
     def kb_service(self) -> KnowledgeBaseService:
@@ -171,11 +175,9 @@ class ZnunyService:
         if not sorted_articles:
             return None
             
-        # Logic: Take the second to last article if available (assuming last is notification), else last.
-        if len(sorted_articles) >= 2:
-            last_relevant = sorted_articles[-2] 
-        else:
-            last_relevant = sorted_articles[-1]
+        # Logic: Take the FIRST article (the inception of the ticket), as it contains the user's original request.
+        # This avoids picking up system notifications or auto-replies added later.
+        last_relevant = sorted_articles[0]
         
         subject = last_relevant.get("Subject", "")
         body = last_relevant.get("Body", "")
@@ -271,8 +273,8 @@ class ZnunyService:
                           type_id: int) -> Optional[dict]:
         """
         Processes incident tickets (type_id=10).
-        Extracts client info and notifies log monitor service.
-        Returns incident_data or None.
+        Extracts client info and delegates to error_log in a separate thread.
+        Returns incident_data with delegated=True immediately.
         """
         if type_id != 10:
             return None
@@ -287,61 +289,231 @@ class ZnunyService:
             
             # Extract client using AI
             client_info = self.agent_service.extract_client_info(metadata, ticket_text)
+            entity = client_info.get('entidad', 'No identificado')
             
-            # Build incident data for log monitor
+            logger.info(f"📍 Cliente real detectado: {entity}")
+            
+            # Build incident data for async processing
             import datetime
             incident_data = {
-                "ticket_id": ticket_id,
+                "ticket_id": str(ticket_id),
                 "ticket_number": metadata.get("ticket_number"),
-                "title": metadata.get("title"),
-                "type_id": type_id,
-                "diagnostico": diagnosis_body,
-                "cliente_real": client_info,
-                "queue": metadata.get("queue"),
-                "state": metadata.get("state"),
-                "priority": metadata.get("priority"),
-                "created": metadata.get("created"),
+                "title": metadata.get("title", ""),
+                "ticket_text": ticket_text,
+                "entity": entity,
+                "diagnostico_inicial": diagnosis_body,
+                "session_id": session_id,
+                "queue_id": 1,
+                "priority_id": 3,
+                "state_id": 4,
                 "processed_at": datetime.datetime.utcnow().isoformat() + "Z"
             }
             
-            logger.info(f"📍 Cliente real detectado: {client_info.get('entidad', 'No identificado')}")
+            # Launch async processing in separate thread
+            self._executor.submit(
+                self._process_incident_async,
+                incident_data
+            )
+            logger.info(f"🚀 Incident {ticket_id} delegated to background thread for error_log processing")
             
-            # Notify external log monitor service
-            self._notify_log_monitor(incident_data)
-            
+            # Return with delegated flag
+            incident_data["delegated"] = True
             return incident_data
             
         except Exception as e:
             logger.error(f"❌ Error processing incident data: {e}")
             return None
 
-    def _notify_log_monitor(self, incident_data: dict) -> bool:
+    def _process_incident_async(self, incident_data: dict) -> None:
         """
-        Notifies the external log monitor service about the incident.
-        Fire-and-forget pattern - does not block on failure.
+        Async handler that runs in a separate thread.
+        Calls error_log, waits for response, formats as text, updates Znuny.
+        """
+        ticket_id = incident_data["ticket_id"]
+        entity = incident_data["entity"]
+        session_id = incident_data["session_id"]
+        
+        logger.info(f"� [Thread] Starting async processing for ticket {ticket_id}, entity: {entity}")
+        
+        try:
+            # 1. Call error_log and wait for response
+            error_log_response = self._call_error_log(incident_data)
+            
+            if not error_log_response:
+                logger.warning(f"⚠️ [Thread] No response from error_log for ticket {ticket_id}")
+                # Update Znuny with fallback message
+                fallback_body = self._format_no_logs_found(entity, incident_data.get("diagnostico_inicial", ""))
+                self._update_znuny_article(
+                    ticket_id=int(ticket_id),
+                    session_id=session_id,
+                    subject="Diagnóstico de Incidente (Sin logs encontrados)",
+                    body=fallback_body,
+                    type_id=10
+                )
+                return
+            
+            # 2. Format response as readable text
+            formatted_body = self._format_error_log_response(entity, error_log_response)
+            
+            # 3. Update Znuny with formatted response
+            self._update_znuny_article(
+                ticket_id=int(ticket_id),
+                session_id=session_id,
+                subject="Diagnóstico de Incidente (Error Log)",
+                body=formatted_body,
+                type_id=10
+            )
+            
+            logger.info(f"✅ [Thread] Ticket {ticket_id} updated with error_log diagnosis")
+            
+        except Exception as e:
+            logger.error(f"❌ [Thread] Error in async incident processing for {ticket_id}: {e}")
+
+    def _call_error_log(self, incident_data: dict) -> Optional[dict]:
+        """
+        Calls error_log /analyze-incident endpoint and waits for response.
+        Returns parsed JSON response or None on failure.
         """
         log_monitor_url = os.environ.get("LOG_MONITOR_URL")
         if not log_monitor_url:
-            logger.warning("⚠️ LOG_MONITOR_URL not configured - skipping log monitor notification")
-            return False
+            logger.warning("⚠️ LOG_MONITOR_URL not configured - skipping error_log call")
+            return None
+        
         endpoint = f"{log_monitor_url}/analyze-incident"
         
+        # Build payload matching error_log's DatosIncidente model
+        payload = {
+            "ticket_id": incident_data["ticket_id"],
+            "ticket_number": incident_data.get("ticket_number"),
+            "title": incident_data["title"],
+            "ticket_text": incident_data["ticket_text"],
+            "entity": incident_data["entity"],
+            "diagnostico_inicial": incident_data.get("diagnostico_inicial")
+        }
+        
         try:
+            logger.info(f"📤 [Thread] Calling error_log for entity: {incident_data['entity']}")
             response = requests.post(
                 endpoint,
-                json=incident_data,
-                timeout=10
+                json=payload,
+                timeout=300  # 5 minutes - error_log may take time processing SSH logs
             )
-            logger.info(f"📤 Incident sent to log monitor: {response.status_code}")
-            return True
+            response.raise_for_status()
+            
+            data = response.json()
+            logger.info(f"� [Thread] error_log response received: {data.get('logs_encontrados', 0)} logs found")
+            return data
+            
         except requests.exceptions.Timeout:
-            logger.warning("⚠️ Log monitor request timed out - continuing without logs")
-            return False
+            logger.warning("⚠️ [Thread] error_log request timed out (5 min)")
+            return None
         except requests.exceptions.ConnectionError:
-            logger.warning("⚠️ Could not connect to log monitor - service may be down")
-            return False
+            logger.warning("⚠️ [Thread] Could not connect to error_log service")
+            return None
         except Exception as e:
-            logger.warning(f"⚠️ Error notifying log monitor: {e}")
+            logger.warning(f"⚠️ [Thread] Error calling error_log: {e}")
+            return None
+
+    def _format_error_log_response(self, entity: str, response: dict) -> str:
+        """
+        Formats error_log JSON response as readable text for Znuny.
+        """
+        logs_count = response.get("logs_encontrados", 0)
+        diagnosticos = response.get("diagnosticos", [])
+        resumen = response.get("mensaje_resumen", "")
+        
+        lines = [
+            "[Procesado por: Error Log Monitor]",
+            "",
+            "═" * 55,
+            f"DIAGNÓSTICO DE INCIDENTE - {entity}",
+            "═" * 55,
+            "",
+            f"[INFO] Se encontraron {logs_count} errores fatales en las ultimas 2 horas.",
+            ""
+        ]
+        
+        # Add individual diagnostics (limit to 5)
+        for i, diag in enumerate(diagnosticos[:5], 1):
+            log_info = diag.get("log", {})
+            diag_info = diag.get("diagnostico", {})
+            
+            lines.append(f"─── Error {i} ───")
+            lines.append(f"Tipo: {diag_info.get('tipo_error', 'Desconocido')}")
+            lines.append(f"Severidad: {diag_info.get('severidad', 'N/A')}")
+            lines.append(f"Mensaje: {log_info.get('mensaje', 'N/A')[:200]}")
+            lines.append(f"Diagnóstico: {diag_info.get('resumen', 'N/A')}")
+            lines.append(f"Recomendación: {diag_info.get('recomendacion', 'N/A')}")
+            lines.append("")
+        
+        if len(diagnosticos) > 5:
+            lines.append(f"... y {len(diagnosticos) - 5} errores adicionales.")
+            lines.append("")
+        
+        lines.extend([
+            "═" * 55,
+            "RESUMEN Y PRÓXIMOS PASOS",
+            "═" * 55,
+            resumen
+        ])
+        
+        return "\n".join(lines)
+
+    def _format_no_logs_found(self, entity: str, diagnostico_inicial: str) -> str:
+        """
+        Formats fallback message when no logs are found in error_log.
+        """
+        return f"""[Procesado por: Error Log Monitor]
+
+═══════════════════════════════════════════════════════
+DIAGNÓSTICO DE INCIDENTE - {entity}
+═══════════════════════════════════════════════════════
+
+[INFO] No se encontraron errores fatales relacionados con '{entity}' en las ultimas 2 horas.
+
+─── Diagnóstico Inicial ───
+{diagnostico_inicial}
+
+═══════════════════════════════════════════════════════
+PRÓXIMOS PASOS
+═══════════════════════════════════════════════════════
+- Verificar manualmente los logs del servidor.
+- Contactar al cliente para obtener más detalles sobre el problema.
+- Escalar a nivel 2 si el problema persiste.
+"""
+
+    def _update_znuny_article(self, ticket_id: int, session_id: str, 
+                               subject: str, body: str, type_id: int = 10) -> bool:
+        """
+        Updates a Znuny ticket with a new article.
+        Used by async incident processing.
+        """
+        url = f"{self.base_url}/Ticket/{ticket_id}"
+        payload = {
+            "SessionID": session_id,
+            "TicketID": ticket_id,
+            "Ticket": {
+                "TypeID": type_id
+            },
+            "Article": {
+                "Subject": subject,
+                "Body": body,
+                "ContentType": "text/plain; charset=utf8"
+            }
+        }
+        
+        try:
+            r = requests.patch(
+                url,
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=30
+            )
+            r.raise_for_status()
+            logger.info(f"✅ [Thread] Znuny ticket {ticket_id} updated successfully")
+            return True
+        except Exception as e:
+            logger.error(f"❌ [Thread] Failed to update Znuny ticket {ticket_id}: {e}")
             return False
 
     def _call_multimodal_service(self, ticket_id: int, ticket_text: str) -> Optional[Dict[str, Any]]:
@@ -434,6 +606,8 @@ class ZnunyService:
         if not ticket_text:
             raise ValueError("No ticket text found (latest article).")
 
+        logger.info(f"📝 TEXTO DEL TICKET EXTRAÍDO:\n{ticket_text}\n" + "═"*30)
+
         # 4. Get RAG configuration
         tool_config = self._get_rag_tool_config()
 
@@ -469,8 +643,25 @@ class ZnunyService:
             ticket_id, session_id, ticket_text, diagnosis_body, type_id_from_ia
         )
 
-        # 7. Update Znuny ticket
+        # 8. Check if incident was delegated to background thread
+        if incident_data and incident_data.get("delegated"):
+            logger.info(f"🚀 Ticket {ticket_id} is INCIDENT - delegated to error_log. Skipping sync Znuny update.")
+            return {
+                "ok": True,
+                "ticket_id": ticket_id,
+                "type_id_from_ia": type_id_from_ia,
+                "diagnosis_body": diagnosis_body,
+                "delegated_to_error_log": True,
+                "incident_data": incident_data,
+                "message": "Incident delegated to error_log for async processing. Znuny will be updated by background thread."
+            }
+
+        # 9. Update Znuny ticket (only for non-incident tickets)
         logger.info(f"Sending update to ticket {ticket_id}...")
+        
+        # Add service identifier for traceability
+        body_with_identifier = f"[Procesado por: mod_agentes]\n\n{diagnosis_body}"
+        
         resp = self.update_ticket(
             ticket_id=ticket_id,
             session_id=session_id,
@@ -480,14 +671,14 @@ class ZnunyService:
             priority_id=priority_id,
             state_id=state_id,
             subject=subject,
-            body=diagnosis_body,
+            body=body_with_identifier,
             type_id=type_id_from_ia
         )
         
         if isinstance(resp, dict) and 'error' in resp:
             raise RuntimeError(f"Failed to update Znuny: {resp['error']}")
 
-        # 8. Build response
+        # 10. Build response
         result = {
             "ok": True,
             "ticket_id": ticket_id,
