@@ -85,12 +85,7 @@ class GoogleDriveService:
             if not values:
                 return "No data found."
             
-            # Convertir lista de listas a string para el KB
-            text_content = []
-            for row in values:
-                text_content.append(", ".join(row))
-            
-            return "\n".join(text_content)
+            return "\n".join([", ".join(row) for row in values])
 
         except Exception as e:
             print(f"❌ Error leyendo Google Sheet {spreadsheet_id}: {e}")
@@ -113,53 +108,27 @@ class GoogleDriveService:
             return []
         
         try:
-            print(f"📊 Leyendo incidentes desde '{sheet_name}'...")
+            print(f"📊 Leyendo incidentes desde '{sheet_name}' (L:AC)...")
             
-            # Leer columnas L1 (L) y AC1 (AC) completas
             sheet = self.sheets_service.spreadsheets()
-            
-            # Leer L1 (columna L, índice 11)
-            l1_result = sheet.values().get(
+            result = sheet.values().get(
                 spreadsheetId=spreadsheet_id,
-                range=f"{sheet_name}!L:L"
+                range=f"{sheet_name}!L:AC"
             ).execute()
-            l1_values = l1_result.get('values', [])
             
-            # Leer AC1 (columna AC, índice 28)
-            ac1_result = sheet.values().get(
-                spreadsheetId=spreadsheet_id,
-                range=f"{sheet_name}!AC:AC"
-            ).execute()
-            ac1_values = ac1_result.get('values', [])
-            
-            # Normalizar longitudes (AC1 puede ser más corta)
-            max_rows = max(len(l1_values), len(ac1_values))
-            
+            values = result.get('values', [])
             incidents = []
-            skipped_count = 0
             
-            # Iterar desde fila 1 (saltar header en fila 0)
-            for i in range(1, max_rows):
-                # Obtener valores, manejar filas faltantes
-                l1_cell = l1_values[i][0] if i < len(l1_values) and len(l1_values[i]) > 0 else ""
-                ac1_cell = ac1_values[i][0] if i < len(ac1_values) and len(ac1_values[i]) > 0 else ""
+            # Iterar desde fila 1 (saltar header)
+            for i, row in enumerate(values[1:], start=1):
+                # Columna L es índice 0, AC es índice 17 (L=12, AC=29)
+                l1_cell = row[0] if len(row) > 0 else ""
+                ac1_cell = row[17] if len(row) > 17 else ""
                 
-                # Filtrar: ambos campos deben estar completos
-                if not l1_cell.strip() or not ac1_cell.strip():
-                    skipped_count += 1
-                    continue
-                
-                # Formatear como documento estructurado
-                incident_doc = f"""=== INCIDENTE #{i} ===
-L1: {l1_cell.strip()}
-AC1: {ac1_cell.strip()}
----
-"""
-                incidents.append(incident_doc)
+                if l1_cell.strip() and ac1_cell.strip():
+                    incidents.append(f"=== INCIDENTE #{i} ===\nL1: {l1_cell.strip()}\nAC1: {ac1_cell.strip()}\n---\n")
             
-            print(f"✅ Procesados {len(incidents)} incidentes válidos")
-            print(f"⚠️ Omitidas {skipped_count} filas con campos vacíos")
-            
+            print(f"✅ Procesados {len(incidents)} incidentes. Omitidos {len(values[1:]) - len(incidents)}")
             return incidents
             
         except Exception as e:
@@ -178,37 +147,22 @@ AC1: {ac1_cell.strip()}
         Returns:
             bool: True si la sincronización fue exitosa.
         """
+        temp_filename = f"temp_drive_{file_id}.txt"
         try:
-            print(f"🔄 Sincronizando archivo Drive {file_id} a KB {store_name}...")
+            print(f"🔄 Sincronizando Drive {file_id} -> KB {store_name}...")
             
-            # 1. Obtener contenido
             content = self.get_file_content(file_id)
             if not content:
-                print("❌ No se pudo obtener contenido de Drive.")
                 return False
                 
-            # 2. Guardar en archivo temporal
-            temp_filename = f"temp_drive_{file_id}.txt"
             with open(temp_filename, "w") as f:
                 f.write(content)
                 
-            # 3. Subir a Knowledge Base
-            success = kb_service.upload_and_index_file(store_name, temp_filename)
-            
-            # 4. Limpieza
-            if os.path.exists(temp_filename):
-                os.remove(temp_filename)
-                
-            if success:
-                print("✅ Sincronización completada.")
-                return True
-            else:
-                print("❌ Falló la subida a Knowledge Base.")
-                return False
+            return kb_service.upload_and_index_file(store_name, temp_filename)
                 
         except Exception as e:
             print(f"❌ Error en sincronización: {e}")
-            # Asegurar limpieza en caso de error
-            if 'temp_filename' in locals() and os.path.exists(temp_filename):
-                os.remove(temp_filename)
             return False
+        finally:
+            if os.path.exists(temp_filename):
+                os.remove(temp_filename)

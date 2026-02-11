@@ -3,7 +3,7 @@ import json
 import time
 import logging
 import requests
-from concurrent.futures import ThreadPoolExecutor
+import datetime
 from typing import Optional, Dict, Any, Union
 from .agent_service import AgentService
 from .knowledge_base_service import KnowledgeBaseService
@@ -17,6 +17,19 @@ class ZnunyService:
     Service to interact with Znuny API, handling authentication,
     ticket retrieval, and updates.
     """
+
+    # Patrones de notificaciones automáticas que deben ignorar
+    SYSTEM_PATTERNS = [
+        "La solicitud ha sido registrada",
+        "Cordial saludo",
+        "información adicional ingresando a la Plataforma de seguimiento",
+        "Este correo electrónico y su contenido son para el uso exclusivo",
+        "ha sido registrado en la mesa de servicios"
+    ]
+
+    # URLs predeterminadas para servicios externos
+    DEFAULT_LOG_MONITOR_URL = "http://localhost:8005"
+    DEFAULT_MULTIMODAL_URL = "http://localhost:8085"
 
     def __init__(self):
         self.base_url = os.environ.get("ZNUNY_BASE_API", "").rstrip("/")
@@ -167,17 +180,45 @@ class ZnunyService:
             return None
 
         # Sort by CreateTime or ArticleID
+        # Sort by CreateTime and use ArticleID as tie-break for stability
         sorted_articles = sorted(
             articles,
-            key=lambda a: a.get("CreateTime") or a.get("ArticleID") or 0
+            key=lambda a: (a.get("CreateTime") or "", a.get("ArticleID") or 0)
         )
         
-        if not sorted_articles:
-            return None
-            
-        # Logic: Take the FIRST article (the inception of the ticket), as it contains the user's original request.
-        # This avoids picking up system notifications or auto-replies added later.
-        last_relevant = sorted_articles[0]
+        def is_auto_notification(article):
+            body = article.get("Body", "")
+            # Si el remitente es sistema, es obvio
+            if article.get("SenderType") == "system":
+                return True
+            # Si el asunto tiene el formato de ticket automático
+            subject = article.get("Subject", "")
+            if "[Ticket#" in subject and "La solicitud ha sido registrada" in body:
+                return True
+            # Búsqueda de patrones en el cuerpo
+            for pattern in self.SYSTEM_PATTERNS:
+                if pattern in body:
+                    return True
+            return False
+
+        # 1. Intentar obtener el artículo del CLIENTE que NO sea notificación
+        customer_articles = [
+            a for a in sorted_articles 
+            if a.get("SenderType") == "customer" and not is_auto_notification(a)
+        ]
+        
+        if customer_articles:
+            # Tomamos el último mensaje del cliente real
+            last_relevant = customer_articles[-1]
+        else:
+            # 2. Fallback: Si no hay del cliente limpio, buscamos cualquier no-notificación
+            valid_articles = [a for a in sorted_articles if not is_auto_notification(a)]
+            if valid_articles:
+                # Tomamos el primero de los válidos (usualmente la apertura)
+                last_relevant = valid_articles[0]
+            else:
+                # Fallback extremo: el primero de la lista
+                last_relevant = sorted_articles[0]
         
         subject = last_relevant.get("Subject", "")
         body = last_relevant.get("Body", "")
@@ -233,10 +274,6 @@ class ZnunyService:
             logger.error(f"Failed to update Znuny ticket {ticket_id}: {e}")
             return {"error": str(e)}
 
-    # =========================================================================
-    # PRIVATE HELPERS (Single Responsibility Principle)
-    # =========================================================================
-    
     def _get_rag_tool_config(self):
         """Gets the RAG tool configuration. Returns None if unavailable."""
         try:
@@ -264,17 +301,53 @@ class ZnunyService:
         return {
             "type_id": response_data.get("type_id"),
             "requires_visual": response_data.get("requires_visual", False),
+            "criticality_score": response_data.get("criticality_score", 5),
+            "is_security_alert": response_data.get("is_security_alert", False),
             "diagnostico": response_data.get("diagnostico")
         }
 
+    def _build_incident_data(self, ticket_id: int, metadata: dict, 
+                               diagnosis_body: str, type_id: int, 
+                               client_info: dict, ticket_text: str) -> dict:
+        """Builds the incident data structure."""
+        return {
+            "ticket_id": ticket_id,
+            "ticket_number": metadata.get("ticket_number"),
+            "title": metadata.get("title"),
+            "type_id": type_id,
+            "type_name": "Incidente",
+            "diagnostico": diagnosis_body,
+            "ticket_text": ticket_text,
+            "cliente_znuny": {
+                "customer_id": metadata.get("customer_id"),
+                "customer_user": metadata.get("customer_user")
+            },
+            "cliente_real": client_info,
+            "queue": metadata.get("queue"),
+            "state": metadata.get("state"),
+            "priority": metadata.get("priority"),
+            "created": metadata.get("created"),
+            "processed_at": datetime.datetime.utcnow().isoformat() + "Z"
+        }
+
+    def _save_incident_to_file(self, ticket_id: int, incident_data: dict) -> str:
+        """Saves incident data to JSON file. Returns the file path."""
+        incidents_dir = os.path.join(os.path.dirname(__file__), "..", "logs", "incidents")
+        os.makedirs(incidents_dir, exist_ok=True)
+        
+        json_path = os.path.join(incidents_dir, f"ticket_{ticket_id}.json")
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(incident_data, f, ensure_ascii=False, indent=2)
+        
+        return json_path
 
     def _process_incident(self, ticket_id: int, session_id: str, 
                           ticket_text: str, diagnosis_body: str, 
                           type_id: int) -> Optional[dict]:
         """
         Processes incident tickets (type_id=10).
-        Extracts client info and delegates to error_log in a separate thread.
-        Returns incident_data with delegated=True immediately.
+        Extracts client info and saves to JSON.
+        Returns technical summary if found, or None.
         """
         if type_id != 10:
             return None
@@ -289,232 +362,58 @@ class ZnunyService:
             
             # Extract client using AI
             client_info = self.agent_service.extract_client_info(metadata, ticket_text)
-            entity = client_info.get('entidad', 'No identificado')
             
-            logger.info(f"📍 Cliente real detectado: {entity}")
-            
-            # Build incident data for async processing
-            import datetime
-            incident_data = {
-                "ticket_id": str(ticket_id),
-                "ticket_number": metadata.get("ticket_number"),
-                "title": metadata.get("title", ""),
-                "ticket_text": ticket_text,
-                "entity": entity,
-                "diagnostico_inicial": diagnosis_body,
-                "session_id": session_id,
-                "queue_id": 1,
-                "priority_id": 3,
-                "state_id": 4,
-                "processed_at": datetime.datetime.utcnow().isoformat() + "Z"
-            }
-            
-            # Launch async processing in separate thread
-            self._executor.submit(
-                self._process_incident_async,
-                incident_data
+            # Build and save incident data
+            incident_data = self._build_incident_data(
+                ticket_id, metadata, diagnosis_body, type_id, client_info, ticket_text
             )
-            logger.info(f"🚀 Incident {ticket_id} delegated to background thread for error_log processing")
             
-            # Return with delegated flag
-            incident_data["delegated"] = True
-            return incident_data
+            json_path = self._save_incident_to_file(ticket_id, incident_data)
+            
+            logger.info(f"✅ Incident data saved to: {json_path}")
+            logger.info(f"📍 Cliente real detectado: {client_info.get('entidad', 'No identificado')}")
+            
+            # Notify external log monitor service and WAIT for result
+            return self._notify_log_monitor(incident_data)
             
         except Exception as e:
             logger.error(f"❌ Error processing incident data: {e}")
             return None
 
-    def _process_incident_async(self, incident_data: dict) -> None:
+    def _notify_log_monitor(self, incident_data: dict) -> Optional[str]:
         """
-        Async handler that runs in a separate thread.
-        Calls error_log, waits for response, formats as text, updates Znuny.
+        Notifies the external log monitor service about the incident.
+        Returns the technical summary if available.
         """
-        ticket_id = incident_data["ticket_id"]
-        entity = incident_data["entity"]
-        session_id = incident_data["session_id"]
-        
-        logger.info(f"� [Thread] Starting async processing for ticket {ticket_id}, entity: {entity}")
-        
-        try:
-            # 1. Call error_log and wait for response
-            error_log_response = self._call_error_log(incident_data)
-            
-            if not error_log_response:
-                logger.warning(f"⚠️ [Thread] No response from error_log for ticket {ticket_id}")
-                # Update Znuny with fallback message
-                fallback_body = self._format_no_logs_found(entity, incident_data.get("diagnostico_inicial", ""))
-                self._update_znuny_article(
-                    ticket_id=int(ticket_id),
-                    session_id=session_id,
-                    subject="Diagnóstico de Incidente (Sin logs encontrados)",
-                    body=fallback_body,
-                    type_id=10
-                )
-                return
-            
-            # 2. Format response as readable text
-            formatted_body = self._format_error_log_response(entity, error_log_response)
-            
-            # 3. Update Znuny with formatted response
-            self._update_znuny_article(
-                ticket_id=int(ticket_id),
-                session_id=session_id,
-                subject="Diagnóstico de Incidente (Error Log)",
-                body=formatted_body,
-                type_id=10
-            )
-            
-            logger.info(f"✅ [Thread] Ticket {ticket_id} updated with error_log diagnosis")
-            
-        except Exception as e:
-            logger.error(f"❌ [Thread] Error in async incident processing for {ticket_id}: {e}")
-
-    def _call_error_log(self, incident_data: dict) -> Optional[dict]:
-        """
-        Calls error_log /analyze-incident endpoint and waits for response.
-        Returns parsed JSON response or None on failure.
-        """
-        log_monitor_url = os.environ.get("LOG_MONITOR_URL")
-        if not log_monitor_url:
-            logger.warning("⚠️ LOG_MONITOR_URL not configured - skipping error_log call")
-            return None
-        
+        log_monitor_url = os.environ.get("LOG_MONITOR_URL", self.DEFAULT_LOG_MONITOR_URL)
         endpoint = f"{log_monitor_url}/analyze-incident"
         
-        # Build payload matching error_log's DatosIncidente model
-        payload = {
-            "ticket_id": incident_data["ticket_id"],
-            "ticket_number": incident_data.get("ticket_number"),
-            "title": incident_data["title"],
-            "ticket_text": incident_data["ticket_text"],
-            "entity": incident_data["entity"],
-            "diagnostico_inicial": incident_data.get("diagnostico_inicial")
-        }
-        
         try:
-            logger.info(f"📤 [Thread] Calling error_log for entity: {incident_data['entity']}")
+            logger.info(" Requesting technical log analysis from error_log...")
             response = requests.post(
                 endpoint,
-                json=payload,
-                timeout=300  # 5 minutes - error_log may take time processing SSH logs
+                json=incident_data,
+                timeout=45  # Wait for SSH and AI analysis
             )
-            response.raise_for_status()
             
-            data = response.json()
-            logger.info(f"� [Thread] error_log response received: {data.get('logs_encontrados', 0)} logs found")
-            return data
+            if response.status_code == 200:
+                data = response.json()
+                summary = data.get("mensaje_resumen")
+                if summary:
+                    logger.info("✅ Technical analysis received from error_log.")
+                    return summary
             
+            logger.info(f"📤 Incident sent to log monitor: {response.status_code}")
+            return None
         except requests.exceptions.Timeout:
-            logger.warning("⚠️ [Thread] error_log request timed out (5 min)")
+            logger.warning("⚠️ Log monitor request timed out - continuing without logs")
             return None
         except requests.exceptions.ConnectionError:
-            logger.warning("⚠️ [Thread] Could not connect to error_log service")
+            logger.warning("⚠️ Could not connect to log monitor - service may be down")
             return None
         except Exception as e:
-            logger.warning(f"⚠️ [Thread] Error calling error_log: {e}")
+            logger.warning(f"⚠️ Error notifying log monitor: {e}")
             return None
-
-    def _format_error_log_response(self, entity: str, response: dict) -> str:
-        """
-        Formats error_log JSON response as readable text for Znuny.
-        """
-        logs_count = response.get("logs_encontrados", 0)
-        diagnosticos = response.get("diagnosticos", [])
-        resumen = response.get("mensaje_resumen", "")
-        
-        lines = [
-            "[Procesado por: Error Log Monitor]",
-            "",
-            "═" * 55,
-            f"DIAGNÓSTICO DE INCIDENTE - {entity}",
-            "═" * 55,
-            "",
-            f"[INFO] Se encontraron {logs_count} errores fatales en las ultimas 2 horas.",
-            ""
-        ]
-        
-        # Add individual diagnostics (limit to 5)
-        for i, diag in enumerate(diagnosticos[:5], 1):
-            log_info = diag.get("log", {})
-            diag_info = diag.get("diagnostico", {})
-            
-            lines.append(f"─── Error {i} ───")
-            lines.append(f"Tipo: {diag_info.get('tipo_error', 'Desconocido')}")
-            lines.append(f"Severidad: {diag_info.get('severidad', 'N/A')}")
-            lines.append(f"Mensaje: {log_info.get('mensaje', 'N/A')[:200]}")
-            lines.append(f"Diagnóstico: {diag_info.get('resumen', 'N/A')}")
-            lines.append(f"Recomendación: {diag_info.get('recomendacion', 'N/A')}")
-            lines.append("")
-        
-        if len(diagnosticos) > 5:
-            lines.append(f"... y {len(diagnosticos) - 5} errores adicionales.")
-            lines.append("")
-        
-        lines.extend([
-            "═" * 55,
-            "RESUMEN Y PRÓXIMOS PASOS",
-            "═" * 55,
-            resumen
-        ])
-        
-        return "\n".join(lines)
-
-    def _format_no_logs_found(self, entity: str, diagnostico_inicial: str) -> str:
-        """
-        Formats fallback message when no logs are found in error_log.
-        """
-        return f"""[Procesado por: Error Log Monitor]
-
-═══════════════════════════════════════════════════════
-DIAGNÓSTICO DE INCIDENTE - {entity}
-═══════════════════════════════════════════════════════
-
-[INFO] No se encontraron errores fatales relacionados con '{entity}' en las ultimas 2 horas.
-
-─── Diagnóstico Inicial ───
-{diagnostico_inicial}
-
-═══════════════════════════════════════════════════════
-PRÓXIMOS PASOS
-═══════════════════════════════════════════════════════
-- Verificar manualmente los logs del servidor.
-- Contactar al cliente para obtener más detalles sobre el problema.
-- Escalar a nivel 2 si el problema persiste.
-"""
-
-    def _update_znuny_article(self, ticket_id: int, session_id: str, 
-                               subject: str, body: str, type_id: int = 10) -> bool:
-        """
-        Updates a Znuny ticket with a new article.
-        Used by async incident processing.
-        """
-        url = f"{self.base_url}/Ticket/{ticket_id}"
-        payload = {
-            "SessionID": session_id,
-            "TicketID": ticket_id,
-            "Ticket": {
-                "TypeID": type_id
-            },
-            "Article": {
-                "Subject": subject,
-                "Body": body,
-                "ContentType": "text/plain; charset=utf8"
-            }
-        }
-        
-        try:
-            r = requests.patch(
-                url,
-                headers={"Content-Type": "application/json"},
-                json=payload,
-                timeout=30
-            )
-            r.raise_for_status()
-            logger.info(f"✅ [Thread] Znuny ticket {ticket_id} updated successfully")
-            return True
-        except Exception as e:
-            logger.error(f"❌ [Thread] Failed to update Znuny ticket {ticket_id}: {e}")
-            return False
 
     def _call_multimodal_service(self, ticket_id: int, ticket_text: str) -> Optional[Dict[str, Any]]:
         """
@@ -523,17 +422,13 @@ PRÓXIMOS PASOS
         
         Returns dict with 'type_id' and 'diagnosis' or None on failure.
         """
-        multimodal_url = os.environ.get("MULTIMODAL_URL")
-        if not multimodal_url:
-            logger.warning("⚠️ MULTIMODAL_URL not configured - skipping visual analysis")
-            return None
+        multimodal_url = os.environ.get("MULTIMODAL_URL", self.DEFAULT_MULTIMODAL_URL)
         endpoint = f"{multimodal_url}/diagnose"
         
         payload = {
             "ticket_id": str(ticket_id),
             "ticket_text": ticket_text,
             "use_rag": True
-            # TODO: Add images support when needed
         }
         
         try:
@@ -574,10 +469,6 @@ PRÓXIMOS PASOS
             logger.warning(f"⚠️ Error calling multimodal service: {e}")
             return None
 
-    # =========================================================================
-    # MAIN ORCHESTRATOR (Follows Single Responsibility - just orchestrates)
-    # =========================================================================
-    
     def diagnose_and_update_ticket(self, ticket_id: int, 
                                     session_id: Optional[str] = None, 
                                     data: Optional[dict] = None) -> Dict[str, Any]:
@@ -605,8 +496,8 @@ PRÓXIMOS PASOS
         ticket_text = self.get_ticket_latest_article(ticket_id, session_id)
         if not ticket_text:
             raise ValueError("No ticket text found (latest article).")
-
-        logger.info(f"📝 TEXTO DEL TICKET EXTRAÍDO:\n{ticket_text}\n" + "═"*30)
+            
+        logger.info(f"DEBUG: Texto que va a la IA:\n{'='*20}\n{ticket_text}\n{'='*20}")
 
         # 4. Get RAG configuration
         tool_config = self._get_rag_tool_config()
@@ -618,14 +509,35 @@ PRÓXIMOS PASOS
         type_id_from_ia = diagnosis_result["type_id"]
         requires_visual = diagnosis_result.get("requires_visual", False)
         diagnosis_body = diagnosis_result["diagnostico"]
+        criticality = diagnosis_result.get("criticality_score", 5)
+        is_security_alert = diagnosis_result.get("is_security_alert", False)
         
         if not diagnosis_body or not diagnosis_body.strip():
             raise RuntimeError("AI returned empty diagnosis.")
+            
+        # --- LÓGICA DE MODO EMERGENCIA (PREPARACIÓN) ---
+        emergency_header = ""
+        if is_security_alert or criticality >= 9:
+            logger.warning(f"🚨 MODO EMERGENCIA ACTIVADO para ticket {ticket_id} (Criticidad: {criticality})")
+            
+            # Encabezado de protocolo de emergencia
+            emergency_header = (
+                "╔" + "═" * 53 + "╗\n"
+                "║ [ALERTA DE SEGURIDAD CRÍTICA - PROTOCOLO DE EMERGENCIA] ║\n"
+                "╠" + "═" * 53 + "╣\n"
+                "║ ACCIÓN INMEDIATA SUGERIDA:                            ║\n"
+                "║ 1. Aislar servicios afectados.                        ║\n"
+                "║ 2. Verificar accesos no autorizados a base de datos.  ║\n"
+                "║ 3. No realizar pagos ni ceder a extorsiones.          ║\n"
+                "╚" + "═" * 53 + "╝\n\n"
+            )
+            
+            # Modificar el asunto para llamar la atención en Znuny
+            subject = f"!!! ALERTA CRÍTICA SEGURIDAD: {subject} !!!"
         
-        logger.info(f"Diagnosis generated. TypeID: {type_id_from_ia}, RequiresVisual: {requires_visual}")
+        logger.info(f"Diagnosis generated. TypeID: {type_id_from_ia}, Criticality: {criticality}")
 
         # 6. Route to multimodal service if visual analysis needed
-        visual_result = None
         if requires_visual:
             logger.info("🎨 Ticket requires visual analysis - calling multimodal service...")
             visual_result = self._call_multimodal_service(ticket_id, ticket_text)
@@ -638,25 +550,20 @@ PRÓXIMOS PASOS
             else:
                 logger.warning("⚠️ Visual analysis failed - using classic diagnosis as fallback")
 
+        # --- CONSTRUCCIÓN FINAL DEL CUERPO ---
+        if emergency_header:
+            diagnosis_body = f"{emergency_header}─── Diagnóstico de IA ───\n{diagnosis_body}"
+        
         # 7. Process incident (conditional - only if type_id == 10)
-        incident_data = self._process_incident(
+        # We wait for log analysis if it's an incident
+        log_summary = self._process_incident(
             ticket_id, session_id, ticket_text, diagnosis_body, type_id_from_ia
         )
 
-        # 8. Check if incident was delegated to background thread
-        if incident_data and incident_data.get("delegated"):
-            logger.info(f"🚀 Ticket {ticket_id} is INCIDENT - delegated to error_log. Skipping sync Znuny update.")
-            return {
-                "ok": True,
-                "ticket_id": ticket_id,
-                "type_id_from_ia": type_id_from_ia,
-                "diagnosis_body": diagnosis_body,
-                "delegated_to_error_log": True,
-                "incident_data": incident_data,
-                "message": "Incident delegated to error_log for async processing. Znuny will be updated by background thread."
-            }
+        if log_summary:
+            diagnosis_body = f"{diagnosis_body}\n\n─ ANALISIS TÉCNICO DE LOGS ─\n{log_summary}"
 
-        # 9. Update Znuny ticket (only for non-incident tickets)
+        # 7. Update Znuny ticket
         logger.info(f"Sending update to ticket {ticket_id}...")
         
         # Add service identifier for traceability
@@ -687,13 +594,7 @@ PRÓXIMOS PASOS
             "update_response": resp
         }
         
-        if incident_data:
-            result["incident_data"] = incident_data
+        if log_summary:
+            result["log_summary"] = log_summary
             
         return result
-
-
-# Singleton instance for backward compatibility if needed, 
-# but generally better to instantiate where needed or use dependency injection.
-# For now, we can expose a default instance to minimize breakage if other modules import it.
-# However, the plan is to update the controller to use the class.
