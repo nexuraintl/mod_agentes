@@ -30,6 +30,8 @@ class AgentService:
             diagnostico = data.get("diagnostico") or data.get("diagnosis")
             type_id = data.get("type_id")
             requires_visual = data.get("requires_visual", False)
+            criticality_score = data.get("criticality_score", 5) # Default to 5
+            is_security_alert = data.get("is_security_alert", False)
 
             if not diagnostico:
                 logger.warning("Automatic diagnosis unavailable (AI returned empty diagnosis field).")
@@ -38,6 +40,8 @@ class AgentService:
             return {
                 "type_id": type_id,
                 "requires_visual": requires_visual,
+                "criticality_score": criticality_score,
+                "is_security_alert": is_security_alert,
                 "diagnostico": diagnostico or "Diagnóstico no disponible (IA vacía)."
             }
 
