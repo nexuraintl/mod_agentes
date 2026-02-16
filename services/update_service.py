@@ -28,9 +28,7 @@ class ZnunyService:
         "ha sido registrado en la mesa de servicios"
     ]
 
-    # URLs predeterminadas para servicios externos
-    DEFAULT_LOG_MONITOR_URL = "http://localhost:8005"
-    DEFAULT_MULTIMODAL_URL = "http://localhost:8085"
+
 
     def __init__(self):
         self.base_url = os.environ.get("ZNUNY_BASE_API", "").rstrip("/")
@@ -386,7 +384,11 @@ class ZnunyService:
         Notifies the external log monitor service about the incident.
         Returns the technical summary if available.
         """
-        log_monitor_url = os.environ.get("LOG_MONITOR_URL", self.DEFAULT_LOG_MONITOR_URL)
+        log_monitor_url = os.environ.get("LOG_MONITOR_URL")
+        if not log_monitor_url:
+            logger.info("ℹ️ LOG_MONITOR_URL not set - skipping technical log analysis.")
+            return None        
+
         endpoint = f"{log_monitor_url}/analyze-incident"
         
         try:
@@ -423,7 +425,11 @@ class ZnunyService:
         
         Returns dict with 'type_id' and 'diagnosis' or None on failure.
         """
-        multimodal_url = os.environ.get("MULTIMODAL_URL", self.DEFAULT_MULTIMODAL_URL)
+        multimodal_url = os.environ.get("MULTIMODAL_URL")
+        if not multimodal_url:
+            logger.info("ℹ️ MULTIMODAL_URL not set - skipping visual analysis.")
+            return None
+
         endpoint = f"{multimodal_url}/diagnose"
         
         payload = {
