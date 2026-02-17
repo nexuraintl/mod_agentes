@@ -241,7 +241,7 @@ class ZnunyService:
                 "Title": title,
                 "CustomerUser": user,
                 "QueueID": queue_id,
-                "TypeID": type_id,
+                # "TypeID": type_id,  # Comentado: No modificar el tipo de ticket
                 "PriorityID": priority_id,
                 "StateID": state_id
             },
@@ -255,8 +255,9 @@ class ZnunyService:
         if dynamic_fields:
             payload["Ticket"]["DynamicFields"] = dynamic_fields
             
-        if type_id is not None:
-            payload["Ticket"]["TypeID"] = type_id
+        # Comentado: No modificar el tipo de ticket
+        # if type_id is not None:
+        #     payload["Ticket"]["TypeID"] = type_id
         
         logger.debug(f"Sending update payload to Znuny: {json.dumps(payload, indent=2, ensure_ascii=False)}")
 
@@ -586,7 +587,7 @@ class ZnunyService:
             state_id=state_id,
             subject=subject,
             body=body_with_identifier,
-            type_id=type_id_from_ia
+            type_id=None  # Comentado en el método: No modificar el tipo de ticket
         )
         
         if isinstance(resp, dict) and 'error' in resp:
