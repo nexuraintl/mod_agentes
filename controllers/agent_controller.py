@@ -3,89 +3,89 @@ import json
 import logging
 import datetime
 from fastapi import APIRouter, Request, HTTPException, BackgroundTasks
-from fastapi.responses import JSONResponse
+from services.agent_service import AgentService
 from services.update_service import ZnunyService
 
-# Configure logging for the controller
 logger = logging.getLogger(__name__)
-
 router = APIRouter()
 
-# Instantiate the service (Singleton pattern for this module)
+# Instanciamos los servicios
 znuny_service = ZnunyService()
+agent_service = AgentService()
 
-# --------------------------------------------------------------------------
-## Endpoint: Webhook de Znuny (/znuny-webhook)
-# --------------------------------------------------------------------------
 @router.api_route("/znuny-webhook", methods=["POST", "GET", "PUT"])
-async def znuny_webhook(request: Request):
-    """Recibe webhooks desde Znuny y procesa el diagnóstico del ticket."""
-    
-    # Obtener el cuerpo de la petición
-    raw_body = await request.body()
-    body_str = raw_body.decode("utf-8")
-    
-    # Payload para logging (Siguiendo tu lógica original)
-    payload_json = {}
+async def znuny_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Punto de entrada rápido para Znuny. 
+    Responde 200 OK de inmediato y procesa la IA en segundo plano.
+    """
     try:
-        payload_json = await request.json()
-    except:
-        payload_json = {}
+        payload = await request.json()
+    except Exception:
+        payload = {}
 
-    # Estructura de log compatible con tu histórico
-    log_entry = {
-        "time": datetime.datetime.utcnow().isoformat() + "Z",
-        "method": request.method,
-        "headers": dict(request.headers),
-        "json": payload_json,
-        "raw_body": body_str,
-    }
-
-    # Guardado de Logs (Se mantiene lógica de archivos para soporte actual)
-    # Nota: En Cloud Run esto es volátil, idealmente usar Cloud Logging.
-    logs_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "logs")
-    os.makedirs(logs_dir, exist_ok=True)
-    log_file = os.path.join(logs_dir, "znuny_requests.log")
-    
-    try:
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(log_entry, ensure_ascii=False, indent=2) + "\n\n")
-    except Exception as e:
-        logger.error(f"Failed to write to log file: {e}")
-
-    # Búsqueda de TicketID (Lógica robusta del manual) 
+    # 1. Identificar TicketID con tu lógica robusta
     ticket_id = (
-        (payload_json.get("Event") or {}).get("TicketID")
-        or (payload_json.get("Ticket") or {}).get("TicketID")
-        or payload_json.get("TicketID")
+        (payload.get("Event") or {}).get("TicketID")
+        or (payload.get("Ticket") or {}).get("TicketID")
+        or payload.get("TicketID")
     )
 
     if not ticket_id:
         logger.error("No TicketID found in payload")
-        raise HTTPException(status_code=400, detail="No se encontró TicketID en el payload")
+        return {"status": "error", "message": "No TicketID"}
 
-    # Gestión de Sesión y Diagnóstico
+    # 2. Guardar Log (Opcional, pero sin bloquear el flujo)
+    background_tasks.add_task(save_request_log, request.method, payload)
+
+    # 3. LANZAR PROCESAMIENTO PESADO EN BACKGROUND
+    # Esto libera a Znuny en milisegundos
+    background_tasks.add_task(process_ticket_full_cycle, ticket_id, payload)
+
+    return {
+        "status": "received", 
+        "ticket_id": ticket_id,
+        "message": "Procesamiento iniciado en segundo plano"
+    }
+
+async def process_ticket_full_cycle(ticket_id: int, payload: dict):
+    """
+    Lógica que ejecuta el RAG, el diagnóstico y la actualización en Znuny.
+    """
     try:
-        session_id = znuny_service.get_or_create_session_id()
-        logger.info(f"[Webhook] Processing ticket {ticket_id}...")
+        logger.info(f"🚀 Iniciando ciclo de IA para Ticket #{ticket_id}")
         
-        # Ejecutar lógica central
+        session_id = znuny_service.get_or_create_session_id()
+        
+        # Usamos el servicio centralizado que ya ajustamos antes
         result = znuny_service.diagnose_and_update_ticket(
             ticket_id=ticket_id,
             session_id=session_id,
-            data=payload_json
+            data=payload
         )
         
-        # Manejo de tickets omitidos (Filtro de estados) [cite: 130]
         if isinstance(result, dict) and result.get("skipped"):
-            return {
-                "status": "skipped",
-                "ticket_id": ticket_id, 
-                "reason": result.get("reason")
-            }
-
-        return {"status": "ok", "ticket_id": ticket_id}
+            logger.info(f"⏭️ Ticket {ticket_id} omitido: {result.get('reason')}")
+        else:
+            logger.info(f"✅ Ciclo completado para Ticket {ticket_id}")
 
     except Exception as e:
-        logger.error(f"[Webhook] Error: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Fallo en la actualización: {str(e)}")
+        logger.error(f"❌ Error crítico en process_ticket_full_cycle para #{ticket_id}: {e}")
+
+def save_request_log(method: str, payload: dict):
+    """Guarda el log en disco sin afectar la respuesta al cliente."""
+    try:
+        logs_dir = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "logs")
+        os.makedirs(logs_dir, exist_ok=True)
+        log_file = os.path.join(logs_dir, "znuny_requests.log")
+        
+        log_entry = {
+            "time": datetime.datetime.utcnow().isoformat() + "Z",
+            "method": method,
+            "json": payload
+        }
+        
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + "\n")
+    except Exception as e:
+        logger.error(f"Error escribiendo log: {e}")
