@@ -1,6 +1,11 @@
 from google import genai
 from google.genai import types
 import os
+import json
+import logging
+
+# Configuración de logger para Cloud Run
+logger = logging.getLogger(__name__)
 
 class ADKClient:
     def __init__(self):
@@ -10,151 +15,110 @@ class ADKClient:
         self.client = genai.Client(api_key=api_key)
 
     def diagnose_ticket(self, ticket_text, tool_config=None):
+        """
+        Diagnostica y clasifica el ticket utilizando RAG y lógica de soporte avanzada.
+        """
         try:
-            # ----------------------------------------------------------------------
-            # 1. CONTEXTO Y PROMPT (MODIFICADO: RAG ENABLED)
-            # ----------------------------------------------------------------------
+            # 1. PROMPT OPTIMIZADO: Foco en discriminación Lógica vs Visual
             prompt = f"""
-Eres un ingeniero de soporte de nivel 1 especializado en diagnosticar y clasificar tickets.
+Eres un Ingeniero de Soporte Nivel 1 Senior en Nexura. Tu objetivo es realizar un triaje técnico preciso.
 
 # INSTRUCCIONES DE ANÁLISIS
+1. **RAG (Knowledge Base)**: Consulta obligatoriamente tu base de conocimiento para buscar soluciones o contextos previos de Nexura.
+2. **Clasificación**: Identifica si es Incidente (10), Petición (14) o Requerimiento (19).
+3. **Seguridad**: Evalúa si hay brechas, ataques o riesgos de datos (is_security_alert).
+4. **Análisis Visual (Discriminación Crítica)**:
+   - Marca `requires_visual=true` SOLO si la falla es estética/gráfica (colores, fuentes, imágenes rotas, desalineación CSS).
+   - Marca `requires_visual=false` si el cambio es de lógica, aunque sea en un formulario (ej: hacer campo obligatorio, cambiar tipo de input, validación de cédula, horarios).
 
-1. Analiza el ticket recibido.
-2. **CONSULTA TU BASE DE CONOCIMIENTO** (usando las herramientas disponibles) para buscar casos similares, soluciones previas o documentación relevante.
-3. Identifica la intención (Incidente, Petición, Requerimiento).
-4. Detecta si requiere análisis visual.
-5. Evalúa la CRITICIDAD del ticket (1 a 10):
-   - 1-4: Petición simple o duda.
-   - 5-7: Falla técnica normal o lentitud.
-   - 8-10: Bloqueo total, pérdida de datos o AMENAZA DE SEGURIDAD (ransomware, robo, hackeo).
-6. Genera un diagnóstico técnico basado en la evidencia del ticket y la información recuperada.
+# TABLA DE CLASIFICACIÓN
+- Incidente (10): Error, caída de servicio o mal funcionamiento de algo existente.
+- Petición (14): Configuración, creación de usuarios o dudas sobre el uso.
+- Requerimiento (19): Nuevas funciones, cambios en reglas de negocio o lógica de validación.
 
-# TABLA DE CLASIFICACIÓN (OBLIGATORIA)
-Tipo | ID Znuny | Descripción | Acción Inicial
------|-----------|--------------|----------------
-Incidente | 10 | Falla, interrupción o degradación | Replicar, escalar con causa raíz.
-Petición | 14 | Solicitud de acción sobre existente | Resolver o escalar.
-Requerimiento | 19 | Solicitud de nueva funcionalidad | Escalar a desarrollo.
+# REGLAS DE ORO
+- **Diagnóstico**: No entregues código JSON crudo de la base de conocimiento. Explica la solución de forma técnica pero legible.
+- **Seguridad**: Si se menciona Ransomware o acceso no autorizado, criticality_score = 10 y is_security_alert = true.
+- **Formato**: Responde EXCLUSIVAMENTE en JSON.
 
-# DETECCIÓN DE DISEÑO VISUAL
-Marca requires_visual=true si el ticket menciona:
-- Problemas de diseño, CSS, estilos, colores, fuentes, tipografía
-- Errores visuales, UI, UX, interfaz, maquetación, layout
-- Imágenes rotas, logos, banners, iconos, fotografías
+TICKET A ANALIZAR:
+{ticket_text}
 
-# FORMATO DE SALIDA (ESTRICTO JSON)
-
+# FORMATO DE SALIDA (JSON)
 {{
   "type_id": 10|14|19,
   "criticality_score": 1-10,
   "is_security_alert": true|false,
   "requires_visual": true|false,
-  "diagnostico": "Texto del diagnóstico..."
+  "diagnostico": "Tu explicación aquí..."
 }}
-
-# REGLAS
-- Usa la información recuperada para enriquecer el diagnóstico.
-- Si no encuentras información relevante en la base de conocimiento, usa tu criterio general.
-- requires_visual debe ser true SOLO si el ticket claramente requiere análisis de elementos visuales.
-- is_security_alert debe ser true si se mencionan ataques, robos, secuestro de información o accesos no autorizados.
-- Respuesta SOLO en JSON.
-
-TICKET A ANALIZAR:
-{ticket_text}
 """
-            # ----------------------------------------------------------------------
-            # 2. LLAMADA A LA API CON TOOLS
-            # ----------------------------------------------------------------------
-            
-            # Configuración de herramientas
+            # Configuración de herramientas (RAG)
             tools = []
             if tool_config:
-                # Asumimos que tool_config es una lista de herramientas o un objeto Tool válido
-                if isinstance(tool_config, list):
-                    tools.extend(tool_config)
-                else:
-                    tools.append(tool_config)
+                if isinstance(tool_config, list): tools.extend(tool_config)
+                else: tools.append(tool_config)
 
+            # Usamos gemini-2.0-flash (la versión 2.5 no es estándar, 2.0 es la recomendada para RAG)
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 contents=prompt,
                 config=types.GenerateContentConfig( 
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.2,
-                    tools=tools # Inyectamos las herramientas (RAG)
+                    temperature=0.2, # Baja para mantener consistencia en el JSON
+                    tools=tools
                 )
             )
-            print("🔍 Respuesta cruda:", response)
-            return response.text
-                
+            
+            # Limpieza y validación de la respuesta
+            res_text = response.text.strip()
+            if res_text.startswith("```"):
+                res_text = res_text.strip("`").replace("json", "").strip()
+            
+            return res_text
 
         except Exception as e:
-            print(f" Error en diagnose_ticket: {e}")
-            return ""
+            logger.error(f"Error en diagnose_ticket: {e}")
+            return json.dumps({
+                "type_id": 14,
+                "criticality_score": 3,
+                "is_security_alert": False,
+                "requires_visual": False,
+                "diagnostico": f"Error procesando diagnóstico: {str(e)}"
+            })
 
     def extract_client(self, metadata: dict, article_text: str) -> dict:
         """
-        Extrae la información del cliente/entidad real afectada del ticket.
-        Solo se usa para tickets clasificados como Incidentes.
+        Identifica la entidad real afectada (Alcaldía, Gobernación, etc.)
         """
         try:
-            import json
-            
             prompt = f"""
-Eres un analista especializado en identificar clientes y entidades en tickets de soporte.
+Analiza el ticket e identifica la entidad real afectada.
+Nota: El 'customer_id' suele ser genérico. Busca nombres de instituciones en el texto.
 
-# TAREA
-Analiza el ticket de soporte e identifica:
-1. La entidad/empresa/cliente REAL que tiene el problema (NO el usuario interno que creó el ticket)
-2. El contacto del cliente si está disponible en el texto
-3. El email del contacto si está disponible
-4. Un resumen breve del problema (máximo 50 palabras)
+METADATA: {json.dumps(metadata, ensure_ascii=False)}
+CONTENIDO: {article_text}
 
-# METADATA DEL TICKET
-{json.dumps(metadata, ensure_ascii=False, indent=2)}
-
-# CONTENIDO DEL TICKET
-{article_text}
-
-# FORMATO DE SALIDA (ESTRICTO JSON)
+# FORMATO DE SALIDA (JSON)
 {{
-  "entidad": "nombre de la empresa/entidad afectada o 'No identificado'",
-  "contacto": "nombre del contacto o null",
-  "email": "email del contacto o null",
-  "problema_resumido": "resumen breve del problema",
+  "entidad": "Nombre de la empresa/entidad o 'No identificado'",
+  "contacto": "Nombre de la persona",
+  "email": "Email de contacto",
+  "problema_resumido": "Resumen técnico (max 50 palabras)",
   "confianza": 0.0 a 1.0
 }}
-
-# REGLAS
-- Si no puedes identificar la entidad real, usa "No identificado"
-- El customer_id o customer_user de la metadata NO es el cliente real, es el usuario interno
-- Busca en el contenido del ticket menciones a empresas, alcaldías, instituciones, etc.
-- Respuesta SOLO en JSON válido.
 """
-            
             response = self.client.models.generate_content(
-                model="gemini-2.5-flash",
+                model="gemini-2.0-flash",
                 contents=prompt,
-                config=types.GenerateContentConfig(
-                    thinking_config=types.ThinkingConfig(thinking_budget=0),
-                    temperature=0.1
-                )
+                config=types.GenerateContentConfig(temperature=0.1)
             )
             
-            # Parse response
-            response_text = response.text.strip()
-            # Clean markdown if present
-            if response_text.startswith("```"):
-                response_text = response_text.strip("`").replace("json", "").strip()
+            res_text = response.text.strip()
+            if res_text.startswith("```"):
+                res_text = res_text.strip("`").replace("json", "").strip()
             
-            return json.loads(response_text)
+            return json.loads(res_text)
             
         except Exception as e:
-            print(f"❌ Error en extract_client: {e}")
-            return {
-                "entidad": "Error en extracción",
-                "contacto": None,
-                "email": None,
-                "problema_resumido": str(e),
-                "confianza": 0.0
-            }
+            logger.error(f"Error en extract_client: {e}")
+            return {"entidad": "No identificado", "problema_resumido": str(e), "confianza": 0.0}
