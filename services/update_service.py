@@ -137,7 +137,9 @@ class ZnunyService:
         # Ruta 1: Diseño (Multimodal)
         if classification.category == "diseño" or classification.requires_visual:
             logger.info(f"🎨 Delegando a Multimodal por categoría: {classification.category}")
-            visual_data = self._call_multimodal_service(ticket_id, ticket_text)
+            imagenes = self._get_ticket_image_attachments(ticket_id, session_id)
+            logger.info("Multimodal: %d imagen(es) adjunta(s) en el ticket %s", len(imagenes), ticket_id)
+            visual_data = self._call_multimodal_service(ticket_id, ticket_text, imagenes)
             if visual_data:
                 # Extraemos el diagnóstico técnico del multimodal como insumo
                 insumos_especialistas += f"\n[INSUMO VISUAL]: {visual_data.get('diagnosis', visual_data.get('diagnostico'))}"
@@ -310,13 +312,47 @@ class ZnunyService:
             logger.warning("No se pudo obtener ID token para %s: %s", audience, e)
             return {}
 
-    def _call_multimodal_service(self, tid, txt):
+    def _call_multimodal_service(self, tid, txt, images=None):
         url = os.environ.get("MULTIMODAL_URL")
         base = (url or "").rstrip("/")
+        payload = {"ticket_id": str(tid), "ticket_text": txt, "images": images or []}
         try:
-            r = requests.post(f"{base}/diagnose", json={"ticket_id": str(tid), "ticket_text": txt}, headers=self._oidc_headers(base), timeout=120)
+            r = requests.post(f"{base}/diagnose", json=payload, headers=self._oidc_headers(base), timeout=120)
             return r.json()
         except: return None
+
+    def _get_ticket_image_attachments(self, ticket_id, session_id, max_images=4, max_bytes=4_000_000):
+        """Adjuntos tipo imagen del ticket, para el análisis visual del
+        multimodal: [{data: <base64>, mime_type, filename}]. Znuny devuelve
+        `Content` ya en base64 cuando se pide con `Attachments=1`."""
+        url = f"{self.base_url}/Ticket/{ticket_id}?SessionID={session_id}&AllArticles=1&Attachments=1"
+        try:
+            r = requests.get(url, timeout=15)
+            r.raise_for_status()
+            data = r.json().get("Ticket") or []
+            articles = data[0].get("Article", []) if data else []
+        except Exception:
+            logger.exception("Error obteniendo adjuntos del ticket %s", ticket_id)
+            return []
+
+        imagenes = []
+        for art in articles:
+            for att in art.get("Attachment", []) or []:
+                ct = (att.get("ContentType") or "").split(";")[0].strip().lower()
+                content = att.get("Content")
+                if not ct.startswith("image/") or not content:
+                    continue
+                if len(content) * 3 // 4 > max_bytes:
+                    logger.warning("Adjunto %s omitido por tamaño", att.get("Filename"))
+                    continue
+                imagenes.append({
+                    "data": content,
+                    "mime_type": ct,
+                    "filename": att.get("Filename") or "captura.png",
+                })
+                if len(imagenes) >= max_images:
+                    return imagenes
+        return imagenes
 
     def _notify_log_monitor(self, data):
         url = os.environ.get("LOG_MONITOR_URL")
