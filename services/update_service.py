@@ -128,8 +128,9 @@ class ZnunyService:
         classification: TicketClassification = self.agent_service.classify_and_route(ticket_text, tool_config)
         
         insumos_especialistas = ""
-        logs_consultados = []  # líneas crudas de log para adjuntar como soporte
-        insumos_usados = []    # especialistas que sí aportaron, para el encabezado
+        logs_consultados = []      # líneas crudas de log para adjuntar como soporte
+        bloques_detectados = []    # config de bloques del multimodal, para adjuntar como soporte
+        insumos_usados = []        # especialistas que sí aportaron, para el encabezado
         final_type_id = classification.type_id
 
         # C. Lógica de Servicios Externos (Multimodal / Logs)
@@ -141,9 +142,10 @@ class ZnunyService:
             logger.info("Multimodal: %d imagen(es) adjunta(s) en el ticket %s", len(imagenes), ticket_id)
             visual_data = self._call_multimodal_service(ticket_id, ticket_text, imagenes)
             if visual_data:
-                # Extraemos el diagnóstico técnico del multimodal como insumo
+                # El multimodal es solo insumo: el type_id lo decide el
+                # orquestador (clasificación inicial + reporte final).
                 insumos_especialistas += f"\n[INSUMO VISUAL]: {visual_data.get('diagnosis', visual_data.get('diagnostico'))}"
-                final_type_id = visual_data.get("type_id") or final_type_id
+                bloques_detectados = visual_data.get("blocks") or []
                 insumos_usados.append("análisis visual")
 
         # Ruta 2: Incidente / Crítico (Log Errors)
@@ -204,6 +206,17 @@ class ZnunyService:
             diagnosis_body = (
                 f"{diagnosis_body}\n\n"
                 f"---\nLog(s) consultado(s) como soporte:\n{evidencia}"
+            )
+
+        # Igual que los logs: la config de bloques del multimodal se anexa
+        # DESPUÉS del reporte del LLM, verbatim, como insumo técnico.
+        if bloques_detectados:
+            bloques_txt = json.dumps(bloques_detectados, ensure_ascii=False, indent=2)
+            if len(bloques_txt) > 15000:
+                bloques_txt = bloques_txt[:15000] + "\n... (truncado)"
+            diagnosis_body = (
+                f"{diagnosis_body}\n\n"
+                f"---\nConfiguración de bloques detectada (insumo del análisis visual):\n{bloques_txt}"
             )
 
         logger.info(
