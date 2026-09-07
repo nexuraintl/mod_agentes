@@ -129,6 +129,7 @@ class ZnunyService:
         
         insumos_especialistas = ""
         logs_consultados = []  # líneas crudas de log para adjuntar como soporte
+        insumos_usados = []    # especialistas que sí aportaron, para el encabezado
         final_type_id = classification.type_id
 
         # C. Lógica de Servicios Externos (Multimodal / Logs)
@@ -141,6 +142,7 @@ class ZnunyService:
                 # Extraemos el diagnóstico técnico del multimodal como insumo
                 insumos_especialistas += f"\n[INSUMO VISUAL]: {visual_data.get('diagnosis', visual_data.get('diagnostico'))}"
                 final_type_id = visual_data.get("type_id") or final_type_id
+                insumos_usados.append("análisis visual")
 
         # Ruta 2: Incidente / Crítico (Log Errors)
         if classification.category == "incidente" or classification.is_critical:
@@ -151,13 +153,18 @@ class ZnunyService:
                 ticket_id, metadata, "Análisis en curso", final_type_id, client_info, ticket_text
             )
             log_result = self._notify_log_monitor(incident_payload)
+            resumen_logs = None
             if isinstance(log_result, dict):
                 resumen_logs = log_result.get("mensaje_resumen")
-                if resumen_logs:
-                    insumos_especialistas += f"\n[INSUMO TÉCNICO LOGS]: {resumen_logs}"
                 logs_consultados = log_result.get("logs_consultados") or []
             elif log_result:  # compatibilidad si el monitor devuelve un string
-                insumos_especialistas += f"\n[INSUMO TÉCNICO LOGS]: {log_result}"
+                resumen_logs = log_result
+            if resumen_logs:
+                insumos_especialistas += f"\n[INSUMO TÉCNICO LOGS]: {resumen_logs}"
+            # Solo cuenta como insumo real si hubo evidencia o un resumen que no
+            # sea el mensaje de timeout/omisión del monitor.
+            if logs_consultados or (resumen_logs and "omitido por latencia" not in resumen_logs):
+                insumos_usados.append("análisis de logs")
 
         # D. GENERACIÓN DE REPORTE FINAL (UNIFICACIÓN CON RAG)
         reporte: TicketDiagnosisResponse = self.agent_service.generate_final_report(
@@ -203,6 +210,13 @@ class ZnunyService:
             settings.ticket_type_enabled
         )
 
+        # Encabezado: sin nombres de módulos internos, indicando qué
+        # especialistas aportaron insumos a este diagnóstico.
+        if insumos_usados:
+            encabezado = f"[Diagnóstico automático Nexura IA · insumos: {', '.join(insumos_usados)}]"
+        else:
+            encabezado = "[Diagnóstico automático Nexura IA]"
+
         # E. Update Final
         return self.update_ticket(
             ticket_id=ticket_id,
@@ -214,7 +228,7 @@ class ZnunyService:
             state_id=metadata.get("StateID", 1),
             type_id=type_id_a_enviar,
             subject="Diagnóstico Automático Nexura IA",
-            body=f"[Procesado por: mod_agentes]\n\n{diagnosis_body}"
+            body=f"{encabezado}\n\n{diagnosis_body}"
         )
 
     # --- 3. MÉTODOS DE APOYO ---
